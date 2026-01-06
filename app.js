@@ -8,6 +8,14 @@ const API_BASE_URL = window.location.hostname === 'localhost' || window.location
 
 // Состояние приложения
 let currentUser = null;
+
+// Проверка, запущены ли мы в Telegram
+function isInTelegramWebApp() {
+    return window.Telegram && window.Telegram.WebApp && 
+           window.Telegram.WebApp.initDataUnsafe && 
+           window.Telegram.WebApp.initDataUnsafe.user;
+}
+
 let currentScreen = 'welcome';
 let authInProgress = false;
 
@@ -59,26 +67,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Инициализация приложения
 async function initApp() {
     try {
-        const telegramUser = tg.initDataUnsafe.user;
-        console.log('Telegram User:', telegramUser);
-        
-        // Сохраняем данные пользователя Telegram
-        currentUser = {
-            telegram_id: telegramUser.id,
-            first_name: telegramUser.first_name,
-            last_name: telegramUser.last_name || '',
-            username: telegramUser.username,
-            language_code: telegramUser.language_code,
-            is_premium: telegramUser.is_premium || false
-        };
-        
-        // Авторизация через API
-        await authenticateUser(telegramUser);
+        // Проверяем, находимся ли мы внутри Telegram
+        if (window.Telegram && window.Telegram.WebApp) {
+            const telegramUser = tg.initDataUnsafe?.user;
+            
+            if (telegramUser) {
+                console.log('Telegram User found:', telegramUser);
+                
+                // Сохраняем данные пользователя Telegram
+                currentUser = {
+                    telegram_id: telegramUser.id,
+                    first_name: telegramUser.first_name,
+                    last_name: telegramUser.last_name || '',
+                    username: telegramUser.username,
+                    language_code: telegramUser.language_code,
+                    is_premium: telegramUser.is_premium || false
+                };
+                
+                // Пробуем аутентификацию через API
+                await authenticateUser(telegramUser);
+            } else {
+                console.warn('Telegram user data not available in initDataUnsafe');
+                // Показываем тестового пользователя для разработки
+                initTestUser();
+            }
+        } else {
+            console.warn('Not in Telegram Web App. Running in browser mode.');
+            initTestUser();
+        }
         
     } catch (error) {
         console.error('Ошибка инициализации:', error);
         showNotification('Ошибка загрузки приложения', 'error');
+        initTestUser(); // Фолбэк на тестового пользователя
     }
+    // Убираем кружок загрузки
+    tg.ready();
+    tg.expand();
+    console.log('App initialized successfully');
+
+    // Обновляем приветствие
+    updateWelcomeMessage();
 }
 
 // Тестовый пользователь для локальной разработки
@@ -249,77 +278,72 @@ function setupEventListeners() {
 
 // Настройка автодополнения для полей городов
 function setupCityAutocomplete() {
-    // Создаем стили для автодополнения
-    const style = document.createElement('style');
-    style.textContent = `
-        .autocomplete-container {
-            position: relative;
-            width: 100%;
-        }
+    const cityInputs = ['from-input', 'to-input', 'trip-from', 'trip-to'];
+    
+    cityInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
         
-        .autocomplete-list {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            display: none;
-        }
+        input.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            if (value.length >= 2) {
+                showCitySuggestions(inputId, value);
+            } else {
+                hideSuggestions(inputId);
+            }
+        });
         
-        .autocomplete-item {
-            padding: 12px 16px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            transition: background 0.2s;
-        }
-        
-        .autocomplete-item:hover {
-            background: #f8f9fa;
-        }
-        
-        .autocomplete-item:last-child {
-            border-bottom: none;
-        }
-        
-        .autocomplete-highlight {
-            background: #fff3cd;
-            padding: 2px 0;
-            border-radius: 3px;
-        }
-        
-        .city-input-wrapper {
-            position: relative;
-        }
-        
-        .city-input-wrapper .input-group {
-            margin-bottom: 5px;
-        }
-        
-        .clear-city-btn {
-            position: absolute;
-            right: 50px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #999;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 5px;
-            display: none;
-        }
-        
-        .clear-city-btn:hover {
-            color: #666;
-        }
-    `;
-    document.head.appendChild(style);
+        input.addEventListener('focus', function(e) {
+            const value = e.target.value.trim();
+            if (value.length >= 2) {
+                showCitySuggestions(inputId, value);
+            }
+        });
+    });
+}
+
+function showCitySuggestions(inputId, query) {
+    const input = document.getElementById(inputId);
+    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`) || 
+                           createSuggestionsContainer(inputId, input);
+    
+    const filteredCities = RUSSIAN_CITIES.filter(city => 
+        city.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 5);
+    
+    if (filteredCities.length === 0) {
+        suggestionsDiv.style.display = 'none';
+        return;
+    }
+    
+    suggestionsDiv.innerHTML = filteredCities.map(city => 
+        `<div class="suggestion-item" onclick="selectCity('${inputId}', '${city}')">
+            <i class="fas fa-city"></i> ${city}
+        </div>`
+    ).join('');
+    
+    suggestionsDiv.style.display = 'block';
+}
+
+function createSuggestionsContainer(inputId, input) {
+    const container = document.createElement('div');
+    container.id = `${inputId}-suggestions`;
+    container.className = 'suggestions-container';
+    input.parentNode.appendChild(container);
+    return container;
+}
+
+function selectCity(inputId, city) {
+    const input = document.getElementById(inputId);
+    input.value = city;
+    hideSuggestions(inputId);
+}
+
+function hideSuggestions(inputId) {
+    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`);
+    if (suggestionsDiv) {
+        suggestionsDiv.style.display = 'none';
+    }
 }
 
 function setupCityInputListeners() {
@@ -417,6 +441,11 @@ function setupCityInputListeners() {
             cityInputs.forEach(({ id }) => hideAutocomplete(id));
         }
     });
+    // Запускаем автодополнение после загрузки
+    setTimeout(() => {
+        setupCityAutocomplete();
+        console.log('City autocomplete initialized');
+    }, 1000);
 }
 
 function focusNextItem(items, startIndex) {
