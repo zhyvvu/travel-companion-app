@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Companion</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Шапка -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-car"></i>
+                <h1>Travel Companion</h1>
+            </div>
+            <div class="user-info" id="user-info">
+                <div class="loader"></div>
+            </div>
+        </header>
+
+        <!-- Основной контент -->
+        <main>
+            <!-- Экран приветствия -->
+            <section class="welcome-screen active" id="welcome-screen">
+                <div class="welcome-card">
+                    <h2 id="welcome-title">👋 Добро пожаловать!</h2>
+                    <p>Найдите попутчиков или создайте поездку</p>
+                    
+                    <div class="role-selector">
+                        <button class="role-btn driver" onclick="showScreen('find-trip')">
+                            <i class="fas fa-search"></i>
+                            <span>Найти поездку</span>
+                        </button>
+                        <button class="role-btn passenger" onclick="showScreen('create-trip')">
+                            <i class="fas fa-plus-circle"></i>
+                            <span>Создать поездку</span>
+                        </button>
+                    </div>
+                    
+                    <div class="stats">
+                        <div class="stat-item">
+                            <i class="fas fa-users"></i>
+                            <span id="users-count">0</span>
+                            <small>пользователей</small>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-route"></i>
+                            <span id="trips-count">0</span>
+                            <small>поездок</small>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Экран поиска поездок -->
+            <section class="screen" id="find-trip" style="display: none;">
+                <div class="screen-header">
+                    <button class="back-btn" onclick="showScreen('welcome')">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2>🔍 Поиск поездки</h2>
+                </div>
+                
+                <div class="search-form">
+                    <div class="input-group">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <input type="text" id="from-input" placeholder="Откуда" autocomplete="off">
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-flag-checkered"></i>
+                        <input type="text" id="to-input" placeholder="Куда" autocomplete="off">
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="input-group half">
+                            <i class="fas fa-calendar"></i>
+                            <input type="date" id="date-input">
+                        </div>
+                        
+                        <div class="input-group half">
+                            <i class="fas fa-user-friends"></i>
+                            <select id="passengers-input">
+                                <option value="1">1 пассажир</option>
+                                <option value="2">2 пассажира</option>
+                                <option value="3">3 пассажира</option>
+                                <option value="4">4 пассажира</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button class="search-btn">
+                        <i class="fas fa-search"></i>
+                        Найти поездки
+                    </button>
+                </div>
+                
+                <div class="results" id="search-results">
+                    <div class="empty-state">
+                        <i class="fas fa-search"></i>
+                        <p>Введите параметры для поиска</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Экран создания поездки -->
+            <section class="screen" id="create-trip" style="display: none;">
+                <div class="screen-header">
+                    <button class="back-btn" onclick="showScreen('welcome')">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2>🚗 Создать поездку</h2>
+                </div>
+                
+                <div class="trip-form">
+                    <div class="form-section">
+                        <h3><i class="fas fa-route"></i> Маршрут</h3>
+                        <div class="input-group">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <input type="text" id="trip-from" placeholder="Откуда">
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-flag-checkered"></i>
+                            <input type="text" id="trip-to" placeholder="Куда">
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3><i class="fas fa-clock"></i> Дата и время</h3>
+                        <div class="input-row">
+                            <div class="input-group half">
+                                <i class="fas fa-calendar"></i>
+                                <input type="date" id="trip-date">
+                            </div>
+                            <div class="input-group half">
+                                <i class="fas fa-clock"></i>
+                                <input type="time" id="trip-time">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3><i class="fas fa-car"></i> Автомобиль</h3>
+                        <div class="input-group">
+                            <i class="fas fa-car-side"></i>
+                            <input type="text" id="car-model" placeholder="Модель авто">
+                        </div>
+                        <div class="input-row">
+                            <div class="input-group half">
+                                <i class="fas fa-users"></i>
+                                <select id="seats-count">
+                                    <option value="1">1 место</option>
+                                    <option value="2">2 места</option>
+                                    <option value="3" selected>3 места</option>
+                                    <option value="4">4 места</option>
+                                </select>
+                            </div>
+                            <div class="input-group half">
+                                <i class="fas fa-money-bill-wave"></i>
+                                <input type="number" id="trip-price" placeholder="Цена за место">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3><i class="fas fa-comment"></i> Комментарий (необязательно)</h3>
+                        <div class="input-group">
+                            <i class="fas fa-comment-alt"></i>
+                            <input type="text" id="trip-comment" placeholder="Дополнительная информация">
+                        </div>
+                    </div>
+                    
+                    <button class="submit-btn">
+                        <i class="fas fa-paper-plane"></i>
+                        Опубликовать поездку
+                    </button>
+                </div>
+            </section>
+
+            <!-- Экран профиля -->
+            <section class="screen" id="profile" style="display: none;">
+                <div class="screen-header">
+                    <button class="back-btn" onclick="showScreen('welcome')">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2>👤 Мой профиль</h2>
+                </div>
+                
+                <div class="profile-card" id="profile-data">
+                    <div class="loader"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Нижнее меню -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" onclick="showScreen('welcome')">
+                <i class="fas fa-home"></i>
+                <span>Главная</span>
+            </button>
+            <button class="nav-btn" onclick="showScreen('find-trip')">
+                <i class="fas fa-search"></i>
+                <span>Поиск</span>
+            </button>
+            <button class="nav-btn" onclick="showScreen('create-trip')">
+                <i class="fas fa-plus-circle"></i>
+                <span>Создать</span>
+            </button>
+            <button class="nav-btn" onclick="showScreen('profile')">
+                <i class="fas fa-user"></i>
+                <span>Профиль</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Модальные окна -->
+    <div class="modal" id="trip-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Детали поездки</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Детали поездки загружаются...</p>
+                <div class="modal-actions">
+                    <button class="btn-primary" onclick="bookTrip(0)">
+                        <i class="fas fa-check"></i>
+                        Забронировать место
+                    </button>
+                    <button class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i>
+                        Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
