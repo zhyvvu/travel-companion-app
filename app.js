@@ -2,21 +2,11 @@
 const tg = window.Telegram.WebApp;
 
 // Конфигурация API
-const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-    ? 'http://127.0.0.1:8000' 
-    : 'https://travel-api-n6r2.onrender.com'; // ← ВАШ URL ЗДЕСЬ
+const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 
 // Состояние приложения
 let currentUser = null;
 let authInProgress = false;
-
-// Проверка, запущены ли мы в Telegram
-function isInTelegramWebApp() {
-    return window.Telegram && window.Telegram.WebApp && 
-           window.Telegram.WebApp.initDataUnsafe && 
-           window.Telegram.WebApp.initDataUnsafe.user;
-}
-
 let currentScreen = 'welcome';
 
 // Список городов России для автодополнения
@@ -33,7 +23,30 @@ const RUSSIAN_CITIES = [
     'Севастополь', 'Нижний Тагил', 'Дзержинск', 'Орск', 'Сургут'
 ];
 
-// =============== ОБЯЗАТЕЛЬНАЯ АВТОРИЗАЦИЯ ===============
+// Проверка Telegram данных
+function getTelegramUser() {
+    // Способ 1: initDataUnsafe (основной)
+    if (tg.initDataUnsafe?.user) {
+        return tg.initDataUnsafe.user;
+    }
+    
+    // Способ 2: initData (парсим строку)
+    if (tg.initData) {
+        try {
+            const params = new URLSearchParams(tg.initData);
+            const userParam = params.get('user');
+            if (userParam) {
+                return JSON.parse(decodeURIComponent(userParam));
+            }
+        } catch (e) {
+            console.error('Error parsing initData:', e);
+        }
+    }
+    
+    return null;
+}
+
+// ОБЯЗАТЕЛЬНАЯ АВТОРИЗАЦИЯ
 function requireAuth(action = 'выполнить это действие') {
     if (!currentUser || !currentUser.telegram_id) {
         showNotification(`Пожалуйста, авторизуйтесь чтобы ${action}`, 'warning');
@@ -47,70 +60,118 @@ function requireAuth(action = 'выполнить это действие') {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Telegram Web App initialized');
     
-    // Настройка Telegram Web App
-    tg.expand();
-    tg.setHeaderColor('#2481cc');
-    tg.setBackgroundColor('#f5f5f5');
-    
-    // Инициализация приложения
-    await initApp();
-    setupEventListeners();
-    loadStats();
-    setupCityAutocomplete();
-    
-    // Готовность приложения
-    tg.ready();
-    console.log('App ready');
+    try {
+        // Инициализация приложения
+        await initApp();
+        setupEventListeners();
+        loadStats();
+        setupCityAutocomplete();
+        
+        // Готовность приложения
+        if (tg.ready) {
+            tg.ready();
+        }
+        console.log('App ready');
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        showNotification('Ошибка загрузки приложения', 'error');
+    }
 });
 
 // Инициализация приложения
 async function initApp() {
     try {
-        // Проверяем, находимся ли мы внутри Telegram
-        if (window.Telegram && window.Telegram.WebApp) {
-            const telegramUser = tg.initDataUnsafe?.user;
+        console.log('Initializing app...');
+        
+        // Получаем пользователя Telegram
+        const telegramUser = getTelegramUser();
+        
+        if (telegramUser) {
+            console.log('✅ Telegram User found:', telegramUser);
             
-            if (telegramUser) {
-                console.log('Telegram User found:', telegramUser);
-                
-                // Сохраняем данные пользователя Telegram
-                currentUser = {
-                    telegram_id: telegramUser.id,
-                    first_name: telegramUser.first_name,
-                    last_name: telegramUser.last_name || '',
-                    username: telegramUser.username,
-                    language_code: telegramUser.language_code,
-                    is_premium: telegramUser.is_premium || false
-                };
-                
-                // Авторизуем пользователя
-                await authenticateUser(telegramUser);
-            } else {
-                console.warn('Telegram user data not available in initDataUnsafe');
-                showNotification('Откройте приложение через Telegram бота', 'warning');
-                initTestUser();
+            // Сохраняем данные
+            currentUser = {
+                telegram_id: telegramUser.id,
+                first_name: telegramUser.first_name,
+                last_name: telegramUser.last_name || '',
+                username: telegramUser.username,
+                language_code: telegramUser.language_code,
+                is_premium: telegramUser.is_premium || false
+            };
+            
+            // Авторизуем пользователя
+            await authenticateUser(telegramUser);
+            
+            // Настройка WebApp
+            try {
+                if (tg.expand) tg.expand();
+                if (tg.setHeaderColor) tg.setHeaderColor('#2481cc');
+                if (tg.setBackgroundColor) tg.setBackgroundColor('#f5f5f5');
+            } catch (e) {
+                console.log('Некоторые функции WebApp не поддерживаются');
             }
+            
         } else {
-            console.warn('Not in Telegram Web App. Running in browser mode.');
-            initTestUser();
+            console.warn('❌ Telegram user data not available');
+            
+            // Проверяем, в режиме ли разработки
+            const isDevMode = window.location.hostname === 'localhost' || 
+                             window.location.hostname === '127.0.0.1';
+            
+            if (isDevMode) {
+                console.log('🔧 Development mode: using test user');
+                initTestUser();
+            } else {
+                showNotification('Откройте приложение через Telegram бота', 'warning');
+                showTelegramWarning();
+            }
         }
         
     } catch (error) {
         console.error('Ошибка инициализации:', error);
         showNotification('Ошибка загрузки приложения', 'error');
-        initTestUser(); // Фолбэк на тестового пользователя
+        
+        // Фолбэк на тестового пользователя
+        if (window.location.hostname === 'localhost' || 
+            window.location.hostname === '127.0.0.1') {
+            initTestUser();
+        }
     }
     
-    // Убираем кружок загрузки
-    tg.ready();
-    tg.expand();
-    console.log('App initialized successfully');
-
-    // Обновляем приветствие
+    console.log('App initialized');
     updateWelcomeMessage();
 }
 
-// Тестовый пользователь для локальной разработки
+// Показать предупреждение о Telegram
+function showTelegramWarning() {
+    const welcomeScreen = document.getElementById('welcome-screen');
+    if (welcomeScreen) {
+        const warningHtml = `
+            <div class="telegram-warning">
+                <h3>⚠️ Откройте через Telegram</h3>
+                <p>Это приложение работает только внутри Telegram.</p>
+                <p>Чтобы начать:</p>
+                <ol>
+                    <li>Откройте Telegram</li>
+                    <li>Найдите бота @TravelCompanionBot</li>
+                    <li>Нажмите /start</li>
+                    <li>Нажмите кнопку "Открыть Travel Companion"</li>
+                </ol>
+                <p><strong>Тестовый режим:</strong></p>
+                <button class="btn-test-mode" onclick="initTestUser()">
+                    <i class="fas fa-flask"></i> Войти в тестовом режиме
+                </button>
+            </div>
+        `;
+        
+        const welcomeCard = welcomeScreen.querySelector('.welcome-card');
+        if (welcomeCard) {
+            welcomeCard.innerHTML += warningHtml;
+        }
+    }
+}
+
+// Тестовый пользователь
 function initTestUser() {
     currentUser = {
         telegram_id: 123456789,
@@ -122,9 +183,7 @@ function initTestUser() {
     
     updateUserInfo();
     updateWelcomeMessage();
-    
-    // Показываем сообщение о тестовом режиме
-    showNotification('🔧 Режим разработки: Тестовый пользователь', 'info');
+    showNotification('🔧 Тестовый режим активирован', 'info');
 }
 
 // Аутентификация пользователя
@@ -133,9 +192,10 @@ async function authenticateUser(telegramUser) {
     authInProgress = true;
     
     // Показываем лоадер
-    document.getElementById('user-info').innerHTML = `
-        <div class="loader"></div>
-    `;
+    const userInfoEl = document.getElementById('user-info');
+    if (userInfoEl) {
+        userInfoEl.innerHTML = `<div class="loader"></div>`;
+    }
     
     try {
         const response = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
@@ -190,7 +250,7 @@ async function authenticateUser(telegramUser) {
     } catch (error) {
         console.error('Ошибка аутентификации:', error);
         
-        // Пробуем загрузить из localStorage (проверяем, не устарели ли данные)
+        // Пробуем загрузить из localStorage
         const savedUser = localStorage.getItem('travel_user');
         const lastAuthTime = localStorage.getItem('last_auth_time');
         const hoursSinceLastAuth = lastAuthTime ? (Date.now() - lastAuthTime) / (1000 * 60 * 60) : 24;
@@ -204,11 +264,13 @@ async function authenticateUser(telegramUser) {
         } else {
             showNotification('❌ Ошибка авторизации. Проверьте подключение', 'error');
             // Показываем кнопку для повторной попытки
-            document.getElementById('user-info').innerHTML = `
-                <button class="btn-retry-auth" onclick="retryAuth()">
-                    <i class="fas fa-redo"></i> Повторить
-                </button>
-            `;
+            if (userInfoEl) {
+                userInfoEl.innerHTML = `
+                    <button class="btn-retry-auth" onclick="retryAuth()">
+                        <i class="fas fa-redo"></i> Повторить
+                    </button>
+                `;
+            }
         }
     } finally {
         authInProgress = false;
@@ -217,12 +279,52 @@ async function authenticateUser(telegramUser) {
 
 // Повторная попытка авторизации
 async function retryAuth() {
-    if (!tg.initDataUnsafe?.user) {
+    const telegramUser = getTelegramUser();
+    if (!telegramUser) {
         showNotification('Данные Telegram недоступны', 'error');
         return;
     }
     
-    await authenticateUser(tg.initDataUnsafe.user);
+    await authenticateUser(telegramUser);
+}
+
+// Обновить информацию о пользователе
+function updateUserInfo() {
+    if (!currentUser) {
+        const userInfoEl = document.getElementById('user-info');
+        if (userInfoEl) {
+            userInfoEl.innerHTML = `
+                <div class="user-info-unauth">
+                    <button class="btn-small" onclick="initApp()">
+                        <i class="fas fa-sign-in-alt"></i> Войти
+                    </button>
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    const userInfoEl = document.getElementById('user-info');
+    if (userInfoEl) {
+        userInfoEl.innerHTML = `
+            <div class="user-avatar">
+                ${currentUser.first_name.charAt(0)}${currentUser.last_name?.charAt(0) || ''}
+            </div>
+            <div class="user-name">
+                ${currentUser.first_name}
+            </div>
+        `;
+    }
+}
+
+// Обновить приветственное сообщение
+function updateWelcomeMessage() {
+    if (!currentUser) return;
+    
+    const welcomeTitle = document.getElementById('welcome-title');
+    if (welcomeTitle) {
+        welcomeTitle.textContent = `👋 Привет, ${currentUser.first_name}!`;
+    }
 }
 
 // =============== СЛУШАТЕЛИ СОБЫТИЙ ===============
@@ -231,8 +333,10 @@ function setupEventListeners() {
     const today = new Date().toISOString().split('T')[0];
     const dateInputs = document.querySelectorAll('input[type="date"]');
     dateInputs.forEach(input => {
-        input.value = today;
-        input.min = today;
+        if (input) {
+            input.value = today;
+            input.min = today;
+        }
     });
     
     // Устанавливаем время по умолчанию (текущее + 2 часа)
@@ -240,7 +344,9 @@ function setupEventListeners() {
     now.setHours(now.getHours() + 2);
     const timeInputs = document.querySelectorAll('input[type="time"]');
     timeInputs.forEach(input => {
-        input.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        if (input) {
+            input.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        }
     });
     
     // Слушатели для навигации
@@ -433,7 +539,6 @@ function setupCityInputListeners() {
         });
         
         input.addEventListener('blur', () => {
-            // Небольшая задержка, чтобы можно было кликнуть по автодополнению
             setTimeout(() => hideAutocomplete(id), 200);
         });
         
@@ -502,7 +607,7 @@ function showCityAutocomplete(inputId, query) {
     // Фильтруем города по запросу
     const filteredCities = RUSSIAN_CITIES.filter(city => 
         city.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 8); // Ограничиваем 8 результатами
+    ).slice(0, 8);
     
     if (filteredCities.length === 0) {
         hideAutocomplete(inputId);
@@ -642,42 +747,6 @@ function updateNavButtons(activeScreen) {
             btn.classList.add('active');
         }
     });
-}
-
-// Обновить информацию о пользователе
-function updateUserInfo() {
-    if (!currentUser) {
-        document.getElementById('user-info').innerHTML = `
-            <div class="user-info-unauth">
-                <button class="btn-small" onclick="initApp()">
-                    <i class="fas fa-sign-in-alt"></i> Войти
-                </button>
-            </div>
-        `;
-        return;
-    }
-    
-    const userInfoEl = document.getElementById('user-info');
-    if (userInfoEl) {
-        userInfoEl.innerHTML = `
-            <div class="user-avatar">
-                ${currentUser.first_name.charAt(0)}${currentUser.last_name?.charAt(0) || ''}
-            </div>
-            <div class="user-name">
-                ${currentUser.first_name}
-            </div>
-        `;
-    }
-}
-
-// Обновить приветственное сообщение
-function updateWelcomeMessage() {
-    if (!currentUser) return;
-    
-    const welcomeTitle = document.getElementById('welcome-title');
-    if (welcomeTitle) {
-        welcomeTitle.textContent = `👋 Привет, ${currentUser.first_name}!`;
-    }
 }
 
 // =============== ПОИСК ПОЕЗДОК ===============
@@ -874,17 +943,20 @@ function clearSearchForm() {
     
     // Скрываем кнопки очистки
     document.querySelectorAll('.clear-city-btn').forEach(btn => {
-        btn.style.display = 'none';
+        if (btn) btn.style.display = 'none';
     });
     
     // Очищаем результаты
-    document.getElementById('search-results').innerHTML = `
-        <div class="empty-state">
-            <i class="fas fa-search"></i>
-            <h3>Начните поиск поездок</h3>
-            <p>Заполните форму выше для поиска</p>
-        </div>
-    `;
+    const resultsEl = document.getElementById('search-results');
+    if (resultsEl) {
+        resultsEl.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-search"></i>
+                <h3>Начните поиск поездок</h3>
+                <p>Заполните форму выше для поиска</p>
+            </div>
+        `;
+    }
 }
 
 // Показать детали поездки
@@ -899,9 +971,10 @@ async function showTripDetails(tripId) {
             
             if (data.success) {
                 const trip = data.trip;
-                const modalBody = document.getElementById('trip-details-modal');
+                const modal = document.getElementById('modal');
+                const modalBody = document.getElementById('trip-details-modal') || document.getElementById('modal-body');
                 
-                if (modalBody) {
+                if (modal && modalBody) {
                     modalBody.innerHTML = `
                         <div class="trip-detail">
                             <h3>${trip.route.from} → ${trip.route.to}</h3>
@@ -996,7 +1069,7 @@ async function showTripDetails(tripId) {
                         </div>
                     `;
                     
-                    document.getElementById('modal').style.display = 'block';
+                    modal.style.display = 'block';
                 }
             }
         }
@@ -1047,6 +1120,7 @@ async function createTrip() {
         };
         
         console.log('Creating trip:', tripData);
+        console.log('Telegram ID:', currentUser.telegram_id);
         
         const response = await fetch(
             `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
@@ -1060,21 +1134,23 @@ async function createTrip() {
             }
         );
         
-        console.log('Create trip response:', response.status);
+        console.log('Create trip response status:', response.status);
+        
+        const responseText = await response.text();
+        console.log('Create trip response body:', responseText);
         
         if (response.ok) {
-            const data = await response.json();
+            const data = JSON.parse(responseText);
             if (data.success) {
                 showNotification('🎉 Поездка успешно создана!', 'success');
                 showScreen('welcome');
                 clearTripForm();
-                loadStats(); // Обновляем статистику
+                loadStats();
             } else {
                 showNotification(data.message || 'Ошибка создания поездки', 'error');
             }
         } else {
-            const errorText = await response.text();
-            console.error('Create trip error:', errorText);
+            console.error('Create trip error:', responseText);
             showNotification(`Ошибка сервера: ${response.status}`, 'error');
         }
     } catch (error) {
@@ -1099,7 +1175,7 @@ function clearTripForm() {
     
     // Скрываем кнопки очистки
     document.querySelectorAll('.clear-city-btn').forEach(btn => {
-        btn.style.display = 'none';
+        if (btn) btn.style.display = 'none';
     });
 }
 
@@ -1161,7 +1237,6 @@ async function loadProfile() {
                 displayProfile(data.user);
             }
         } else {
-            // Показываем базовую информацию из currentUser
             displayBasicProfile();
         }
     } catch (error) {
@@ -1173,6 +1248,7 @@ async function loadProfile() {
 // Отобразить профиль
 function displayProfile(userData) {
     const profileEl = document.getElementById('profile-data');
+    if (!profileEl) return;
     
     profileEl.innerHTML = `
         <div class="profile-card">
@@ -1248,6 +1324,7 @@ function displayProfile(userData) {
 
 function displayBasicProfile() {
     const profileEl = document.getElementById('profile-data');
+    if (!profileEl) return;
     
     profileEl.innerHTML = `
         <div class="profile-card">
@@ -1337,39 +1414,41 @@ async function loadMyTrips() {
             const data = await response.json();
             if (data.success) {
                 const tripsEl = document.getElementById('profile-data');
-                tripsEl.innerHTML = `
-                    <div class="my-trips-container">
-                        <h3>Мои поездки</h3>
-                        
-                        <div class="trips-section">
-                            <h4>🚗 Как водитель (${data.trips.as_driver.length})</h4>
-                            ${data.trips.as_driver.map(trip => `
-                                <div class="trip-item">
-                                    <div>${trip.route.from} → ${trip.route.to}</div>
-                                    <div class="trip-info">
-                                        <span>${trip.date}</span>
-                                        <span>${trip.available_seats} мест</span>
-                                        <span class="status ${trip.status}">${trip.status}</span>
+                if (tripsEl) {
+                    tripsEl.innerHTML = `
+                        <div class="my-trips-container">
+                            <h3>Мои поездки</h3>
+                            
+                            <div class="trips-section">
+                                <h4>🚗 Как водитель (${data.trips.as_driver.length})</h4>
+                                ${data.trips.as_driver.map(trip => `
+                                    <div class="trip-item">
+                                        <div>${trip.route.from} → ${trip.route.to}</div>
+                                        <div class="trip-info">
+                                            <span>${trip.date}</span>
+                                            <span>${trip.available_seats} мест</span>
+                                            <span class="status ${trip.status}">${trip.status}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                        
-                        <div class="trips-section">
-                            <h4>👤 Как пассажир (${data.trips.as_passenger.length})</h4>
-                            ${data.trips.as_passenger.map(booking => `
-                                <div class="trip-item">
-                                    <div>${booking.route.from} → ${booking.route.to}</div>
-                                    <div class="trip-info">
-                                        <span>${booking.date}</span>
-                                        <span>${booking.seats} мест</span>
-                                        <span class="status ${booking.status}">${booking.status}</span>
+                                `).join('')}
+                            </div>
+                            
+                            <div class="trips-section">
+                                <h4>👤 Как пассажир (${data.trips.as_passenger.length})</h4>
+                                ${data.trips.as_passenger.map(booking => `
+                                    <div class="trip-item">
+                                        <div>${booking.route.from} → ${booking.route.to}</div>
+                                        <div class="trip-info">
+                                            <span>${booking.date}</span>
+                                            <span>${booking.seats} мест</span>
+                                            <span class="status ${booking.status}">${booking.status}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            `).join('')}
+                                `).join('')}
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
             }
         }
     } catch (error) {
@@ -1391,15 +1470,17 @@ async function loadStats() {
             if (tripsCount) tripsCount.textContent = stats.tables?.active_trips || 0;
         } else {
             console.error('Failed to load stats:', response.status);
-            // Устанавливаем дефолтные значения
-            document.getElementById('users-count').textContent = '0';
-            document.getElementById('trips-count').textContent = '0';
+            const usersCount = document.getElementById('users-count');
+            const tripsCount = document.getElementById('trips-count');
+            if (usersCount) usersCount.textContent = '0';
+            if (tripsCount) tripsCount.textContent = '0';
         }
     } catch (error) {
         console.error('Ошибка загрузки статистики:', error);
-        // Устанавливаем дефолтные значения при ошибке
-        document.getElementById('users-count').textContent = '0';
-        document.getElementById('trips-count').textContent = '0';
+        const usersCount = document.getElementById('users-count');
+        const tripsCount = document.getElementById('trips-count');
+        if (usersCount) usersCount.textContent = '0';
+        if (tripsCount) tripsCount.textContent = '0';
     }
 }
 
@@ -1429,7 +1510,10 @@ function showNotification(message, type = 'info') {
 
 // Закрыть модальное окно
 function closeModal() {
-    document.getElementById('modal').style.display = 'none';
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 // Глобальное экспортирование функций для использования в HTML
@@ -1446,3 +1530,4 @@ window.editProfile = editProfile;
 window.showMyTrips = showMyTrips;
 window.retryAuth = retryAuth;
 window.initApp = initApp;
+window.initTestUser = initTestUser;

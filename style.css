@@ -870,3 +870,55 @@ main {
 .notification.show {
     animation: slideDown 0.3s ease;
 }
+
+/* Добавьте в конец style.css */
+.telegram-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-top: 20px;
+    text-align: left;
+}
+
+.telegram-warning h3 {
+    color: #856404;
+    margin-bottom: 10px;
+}
+
+.telegram-warning p {
+    color: #856404;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.telegram-warning ol {
+    margin-left: 20px;
+    color: #856404;
+    margin-bottom: 15px;
+}
+
+.telegram-warning li {
+    margin-bottom: 5px;
+    font-size: 13px;
+}
+
+.btn-test-mode {
+    width: 100%;
+    padding: 12px;
+    background: #17a2b8;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.btn-test-mode:hover {
+    background: #138496;
+}
+
+.btn-test-mode i {
+    margin-right: 8px;
+}
