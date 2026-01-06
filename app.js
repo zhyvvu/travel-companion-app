@@ -4,7 +4,7 @@ const tg = window.Telegram.WebApp;
 // Конфигурация API
 const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://127.0.0.1:8000' 
-    : 'https://ваш-публичный-api.herokuapp.com'; // ЗАМЕНИТЕ на ваш публичный URL
+    : 'https://travel-api-n6r2.onrender.com'; // ← ВАШ URL ЗДЕСЬ
 
 // Состояние приложения
 let currentUser = null;
