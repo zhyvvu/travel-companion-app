@@ -830,15 +830,14 @@ async function searchTrips() {
 function displaySearchResults(trips) {
     const resultsEl = document.getElementById('search-results');
     
-    if (!trips || trips.length === 0) {
+    console.log('Displaying trips:', trips);
+    
+    if (!trips || !Array.isArray(trips) || trips.length === 0) {
         resultsEl.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-search"></i>
                 <h3>Поездки не найдены</h3>
                 <p>Попробуйте изменить параметры поиска</p>
-                <button class="btn-secondary" onclick="clearSearchForm()">
-                    <i class="fas fa-redo"></i> Очистить форму
-                </button>
             </div>
         `;
         return;
@@ -847,31 +846,55 @@ function displaySearchResults(trips) {
     let html = `
         <div class="search-header">
             <h3>Найдено поездок: ${trips.length}</h3>
-            <button class="btn-small" onclick="clearSearchForm()">
-                <i class="fas fa-times"></i> Очистить
-            </button>
         </div>
     `;
     
-    trips.forEach(trip => {
-        const timeOnly = trip.departure.datetime.split(' ')[1];
+    trips.forEach((trip, index) => {
+        // Безопасное получение данных
+        const driverName = trip.driver?.name || 
+                          `${trip.driver?.first_name || ''} ${trip.driver?.last_name || ''}`.trim() || 
+                          'Неизвестный водитель';
+        
+        const driverInitials = trip.driver?.avatar_initials || 
+                              (driverName.charAt(0) + (driverName.split(' ')[1]?.charAt(0) || '')).toUpperCase();
+        
+        const rating = trip.driver?.rating?.toFixed(1) || '5.0';
+        const price = trip.seats?.price_per_seat || 0;
+        
+        const fromCity = trip.route?.from_city || 
+                        trip.route?.from?.split(',')[0] || 
+                        'Не указано';
+        
+        const toCity = trip.route?.to_city || 
+                      trip.route?.to?.split(',')[0] || 
+                      'Не указано';
+        
+        const date = trip.departure?.date || '--.--.----';
+        const time = trip.departure?.time || 
+                    (trip.departure?.datetime?.split(' ')[1]) || 
+                    '--:--';
+        
+        const seats = trip.seats?.available || 0;
+        const carModel = trip.car_info?.model || '';
+        const carColor = trip.car_info?.color || '';
+        const comment = trip.details?.comment || '';
         
         html += `
             <div class="trip-card" onclick="showTripDetails(${trip.id})">
                 <div class="trip-header">
                     <div class="driver-info">
                         <div class="driver-avatar">
-                            ${trip.driver.avatar_initials}
+                            ${driverInitials}
                         </div>
                         <div>
-                            <div class="driver-name">${trip.driver.name}</div>
+                            <div class="driver-name">${driverName}</div>
                             <div class="driver-rating">
-                                ⭐ ${trip.driver.rating.toFixed(1)}
+                                ⭐ ${rating}
                             </div>
                         </div>
                     </div>
                     <div class="trip-price">
-                        <span class="price">${trip.seats.price_per_seat} ₽</span>
+                        <span class="price">${price} ₽</span>
                         <span class="per-seat">за место</span>
                     </div>
                 </div>
@@ -879,43 +902,43 @@ function displaySearchResults(trips) {
                 <div class="trip-route">
                     <div class="route-from">
                         <i class="fas fa-map-marker-alt" style="color: #e74c3c;"></i>
-                        <span class="route-city">${trip.route.from_city || trip.route.from.split(',')[0]}</span>
+                        <span class="route-city">${fromCity}</span>
                     </div>
                     <div class="route-arrow">
                         <i class="fas fa-arrow-right"></i>
                     </div>
                     <div class="route-to">
                         <i class="fas fa-flag-checkered" style="color: #27ae60;"></i>
-                        <span class="route-city">${trip.route.to_city || trip.route.to.split(',')[0]}</span>
+                        <span class="route-city">${toCity}</span>
                     </div>
                 </div>
                 
                 <div class="trip-details">
                     <div class="detail-item">
                         <i class="fas fa-calendar"></i>
-                        <span>${trip.departure.date}</span>
+                        <span>${date}</span>
                     </div>
                     <div class="detail-item">
                         <i class="fas fa-clock"></i>
-                        <span>${timeOnly}</span>
+                        <span>${time}</span>
                     </div>
                     <div class="detail-item">
                         <i class="fas fa-user-friends"></i>
-                        <span>${trip.seats.available} мест</span>
+                        <span>${seats} мест</span>
                     </div>
                 </div>
                 
-                ${trip.car_info ? `
+                ${carModel ? `
                     <div class="trip-car">
                         <i class="fas fa-car"></i>
-                        <span>${trip.car_info.model} • ${trip.car_info.color}</span>
+                        <span>${carModel} ${carColor ? '• ' + carColor : ''}</span>
                     </div>
                 ` : ''}
                 
-                ${trip.details.comment ? `
+                ${comment ? `
                     <div class="trip-comment">
                         <i class="fas fa-comment"></i>
-                        <span>${trip.details.comment}</span>
+                        <span>${comment.length > 50 ? comment.substring(0, 50) + '...' : comment}</span>
                     </div>
                 ` : ''}
                 
