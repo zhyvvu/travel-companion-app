@@ -1027,6 +1027,26 @@ function setupEventListeners() {
         setupCityAutocomplete();
         console.log('✅ City autocomplete initialized');
     }, 1000);
+    
+    // Кнопка создания поездки
+    const submitBtn = document.querySelector('.submit-btn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            console.log('🚗 Кнопка создания поездки нажата');
+            await createTrip();
+        });
+    }
+
+    // Кнопка поиска поездок
+    const searchBtn = document.querySelector('.search-btn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            console.log('🔍 Кнопка поиска нажата');
+            await searchTrips();
+        });
+    }
 }
 
 // =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
@@ -1066,6 +1086,238 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// =============== СОЗДАНИЕ ПОЕЗДКИ ===============
+
+async function createTrip() {
+    console.log('🚗 Создание поездки...');
+    
+    if (!currentUser) {
+        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        return;
+    }
+    
+    try {
+        // Собираем данные из формы
+        const start_address = document.getElementById('trip-from').value.trim();
+        const finish_address = document.getElementById('trip-to').value.trim();
+        const dateStr = document.getElementById('trip-date').value;
+        const departure_time = document.getElementById('trip-time').value;
+        const available_seats = parseInt(document.getElementById('seats-count').value);
+        const price_per_seat = parseFloat(document.getElementById('trip-price').value);
+        const comment = document.getElementById('trip-comment').value.trim();
+        
+        // Валидация
+        if (!start_address || !finish_address || !dateStr || !departure_time || !price_per_seat || !available_seats) {
+            showNotification('Заполните все обязательные поля', 'warning');
+            return;
+        }
+        
+        // Создаем объект DateTime
+        const departure_date = new Date(dateStr + 'T' + departure_time);
+        
+        const tripData = {
+            departure_date: departure_date.toISOString(),
+            departure_time: departure_time,
+            start_address: start_address,
+            finish_address: finish_address,
+            available_seats: available_seats,
+            price_per_seat: price_per_seat,
+            comment: comment || null
+        };
+        
+        console.log('📤 Отправка данных поездки:', tripData);
+        
+        const response = await fetch(
+            `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(tripData)
+            }
+        );
+        
+        const result = await response.json();
+        console.log('Ответ создания поездки:', result);
+        
+        if (response.ok && result.success) {
+            showNotification('✅ Поездка успешно создана!', 'success');
+            // Очищаем форму
+            document.getElementById('trip-from').value = '';
+            document.getElementById('trip-to').value = '';
+            document.getElementById('trip-price').value = '';
+            // Возвращаем на главную
+            setTimeout(() => showScreen('welcome'), 1500);
+        } else {
+            showNotification(result.detail || 'Ошибка создания поездки', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка создания поездки:', error);
+        showNotification('Ошибка при создании поездки', 'error');
+    }
+}
+
+// =============== ПОИСК ПОЕЗДОК ===============
+
+async function searchTrips() {
+    console.log('🔍 Поиск поездок...');
+    
+    const from_city = document.getElementById('from-input').value.trim();
+    const to_city = document.getElementById('to-input').value.trim();
+    const date = document.getElementById('date-input').value;
+    const passengers = parseInt(document.getElementById('passengers-input').value);
+    
+    if (!from_city || !to_city || !date) {
+        showNotification('Заполните поля "Откуда", "Куда" и "Дата"', 'warning');
+        return;
+    }
+    
+    try {
+        const searchData = {
+            from_city: from_city,
+            to_city: to_city,
+            date: date,
+            passengers: passengers
+        };
+        
+        console.log('📤 Данные поиска:', searchData);
+        
+        const response = await fetch(`${API_BASE_URL}/api/trips/search`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(searchData)
+        });
+        
+        const result = await response.json();
+        console.log('Результаты поиска:', result);
+        
+        if (response.ok && result.success) {
+            displaySearchResults(result.trips);
+        } else {
+            showNotification(result.detail || 'Ошибка поиска', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка поиска:', error);
+        showNotification('Ошибка при поиске поездок', 'error');
+    }
+}
+
+// =============== ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ ПОИСКА ===============
+
+function displaySearchResults(trips) {
+    const resultsContainer = document.getElementById('search-results');
+    if (!resultsContainer) return;
+    
+    if (!trips || trips.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-search"></i>
+                <p>Поездки не найдены</p>
+                <p>Попробуйте изменить параметры поиска</p>
+            </div>
+        `;
+        return;
+    }
+    
+    resultsContainer.innerHTML = trips.map(trip => `
+        <div class="trip-card" onclick="showTripDetails(${trip.id})">
+            <div class="trip-header">
+                <div class="driver-info">
+                    <div class="driver-avatar">
+                        ${trip.driver.avatar_initials || 'П'}
+                    </div>
+                    <div>
+                        <div class="driver-name">${trip.driver.name}</div>
+                        <div class="driver-rating">
+                            <i class="fas fa-star"></i> ${trip.driver.rating.toFixed(1)}
+                        </div>
+                    </div>
+                </div>
+                <div class="trip-price">${trip.seats.price_per_seat} ₽</div>
+            </div>
+            
+            <div class="trip-route">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>${trip.route.from}</span>
+                <i class="fas fa-arrow-right"></i>
+                <i class="fas fa-flag-checkered"></i>
+                <span>${trip.route.to}</span>
+            </div>
+            
+            <div class="trip-details">
+                <div><i class="fas fa-calendar"></i> ${trip.departure.datetime}</div>
+                <div><i class="fas fa-users"></i> ${trip.seats.available} мест</div>
+                ${trip.car_info ? `<div><i class="fas fa-car"></i> ${trip.car_info.model}</div>` : ''}
+            </div>
+            
+            <div class="trip-actions">
+                <button class="btn-book" onclick="event.stopPropagation(); bookTrip(${trip.id})">
+                    <i class="fas fa-check"></i> Забронировать
+                </button>
+                <button class="btn-details" onclick="event.stopPropagation(); showTripDetails(${trip.id})">
+                    <i class="fas fa-info-circle"></i> Подробнее
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// =============== ПОКАЗАТЬ ДЕТАЛИ ПОЕЗДКИ ===============
+
+async function showTripDetails(tripId) {
+    console.log('📋 Показать детали поездки:', tripId);
+    // TODO: Реализовать показ деталей
+    showNotification('Функция в разработке', 'info');
+}
+
+// =============== БРОНИРОВАНИЕ ПОЕЗДКИ ===============
+
+async function bookTrip(tripId) {
+    console.log('🎫 Бронирование поездки:', tripId);
+    
+    if (!currentUser) {
+        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        return;
+    }
+    
+    const seats = parseInt(prompt('Сколько мест хотите забронировать?', '1'));
+    if (!seats || seats < 1) return;
+    
+    try {
+        const bookingData = {
+            driver_trip_id: tripId,
+            booked_seats: seats
+        };
+        
+        const response = await fetch(
+            `${API_BASE_URL}/api/bookings/create?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(bookingData)
+            }
+        );
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showNotification('✅ Место успешно забронировано!', 'success');
+        } else {
+            showNotification(result.detail || 'Ошибка бронирования', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка бронирования:', error);
+        showNotification('Ошибка бронирования', 'error');
+    }
+}
+
 // =============== ГЛОБАЛЬНЫЕ ФУНКЦИИ ===============
 window.showScreen = showScreen;
 window.loadFullProfile = loadFullProfile;
@@ -1074,4 +1326,8 @@ window.setDefaultCar = setDefaultCar;
 window.deleteCar = deleteCar;
 window.saveCar = saveCar;
 window.closeModal = closeModal;
+window.showTripDetails = showTripDetails;
+window.bookTrip = bookTrip;
+window.createTrip = createTrip;
+window.searchTrips = searchTrips;
 window.selectCity = selectCity;
