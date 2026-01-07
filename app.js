@@ -587,11 +587,11 @@ async function loadFullProfile() {
             `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
         );
         
-        console.log('Profile response status:', response.status); // ← ДОБАВЛЕНО
+        console.log('Profile response status:', response.status);
         
         if (response.ok) {
             const data = await response.json();
-            console.log('Profile data:', data); // ← ДОБАВЛЕНО
+            console.log('Profile data:', data);
             
             if (data.success) {
                 displayFullProfile(data);
@@ -601,7 +601,7 @@ async function loadFullProfile() {
             }
         } else {
             const errorText = await response.text();
-            console.error('Profile error:', response.status, errorText); // ← ДОБАВЛЕНО
+            console.error('Profile error:', response.status, errorText);
         }
         
         // Если дошли сюда - что-то пошло не так
@@ -620,7 +620,7 @@ function displayFullProfile(data) {
     const profileEl = document.getElementById('profile-data');
     if (!profileEl) return;
     
-    const user = data.user;
+    const user = data.user || {};
     const cars = data.cars || [];
     const driverTrips = data.driver_trips || [];
     const passengerTrips = data.passenger_trips || [];
@@ -630,9 +630,9 @@ function displayFullProfile(data) {
             <!-- Заголовок профиля -->
             <div class="profile-header">
                 <div class="profile-avatar">
-                    ${user.first_name.charAt(0)}${user.last_name?.charAt(0) || ''}
+                    ${user.first_name?.charAt(0) || ''}${user.last_name?.charAt(0) || ''}
                 </div>
-                <div class="profile-name">${user.first_name} ${user.last_name || ''}</div>
+                <div class="profile-name">${user.first_name || ''} ${user.last_name || ''}</div>
                 <div class="profile-role">${user.role === 'driver' ? 'Водитель' : user.role === 'both' ? 'Водитель и пассажир' : 'Пассажир'}</div>
                 <div class="profile-stats">
                     <span><i class="fas fa-car"></i> ${driverTrips.length} поездок</span>
@@ -645,19 +645,19 @@ function displayFullProfile(data) {
                 <h3><i class="fas fa-chart-line"></i> Статистика</h3>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-value">${user.stats.driver_trips || 0}</div>
+                        <div class="stat-value">${user.stats?.driver_trips || 0}</div>
                         <div class="stat-label">Всего поездок как водитель</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${user.stats.passenger_trips || 0}</div>
+                        <div class="stat-value">${user.stats?.passenger_trips || 0}</div>
                         <div class="stat-label">Всего поездок как пассажир</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${user.ratings.driver?.toFixed(1) || '5.0'}</div>
+                        <div class="stat-value">${user.ratings?.driver?.toFixed(1) || '5.0'}</div>
                         <div class="stat-label">Рейтинг водителя</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${user.ratings.passenger?.toFixed(1) || '5.0'}</div>
+                        <div class="stat-value">${user.ratings?.passenger?.toFixed(1) || '5.0'}</div>
                         <div class="stat-label">Рейтинг пассажира</div>
                     </div>
                 </div>
@@ -802,11 +802,6 @@ function displayBasicProfile() {
 
 // Загрузить профиль
 async function loadProfile() {
-    // ДОБАВЬТЕ ЭТИ 3 СТРОКИ:
-    console.log("🎯 ФУНКЦИЯ loadProfile ВЫЗВАНА!");
-    document.getElementById('profile-data').innerHTML = "<h1>✅ Функция работает!</h1>";
-    return;
-
     if (!requireAuth('просматривать профиль')) return;
     
     const profileEl = document.getElementById('profile-data');
