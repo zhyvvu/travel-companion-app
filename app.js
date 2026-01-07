@@ -1,4 +1,4 @@
-// app.js - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ (исправлена)
+// app.js - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ (с функциями управления бронированиями и поездками)
 const tg = window.Telegram.WebApp;
 const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 
@@ -509,7 +509,22 @@ function displayFullProfile(data) {
                                 </div>
                                 <div class="trip-passengers">
                                     <i class="fas fa-user-friends"></i> Пассажиров: ${trip.passengers_count}
+                                    ${trip.passengers_count > 0 ? `
+                                        <button class="btn-small" onclick="showTripBookings(${trip.id})" style="margin-left: 10px;">
+                                            <i class="fas fa-eye"></i> Посмотреть
+                                        </button>
+                                    ` : ''}
                                 </div>
+                                ${trip.status === 'active' ? `
+                                    <div class="trip-actions" style="margin-top: 10px; display: flex; gap: 10px;">
+                                        <button class="btn-small" onclick="showUpdateTripModal(${trip.id})">
+                                            <i class="fas fa-edit"></i> Редактировать
+                                        </button>
+                                        <button class="btn-small btn-danger" onclick="cancelTrip(${trip.id})">
+                                            <i class="fas fa-ban"></i> Отменить
+                                        </button>
+                                    </div>
+                                ` : ''}
                             </div>
                         `).join('')}
                     </div>
@@ -544,6 +559,16 @@ function displayFullProfile(data) {
                                     <span><i class="fas fa-money-bill-wave"></i> ${trip.price} ₽</span>
                                     <span class="status-badge status-${trip.status}">${trip.status}</span>
                                 </div>
+                                ${trip.status === 'active' ? `
+                                    <div class="trip-actions" style="margin-top: 10px; display: flex; gap: 10px;">
+                                        <button class="btn-small" onclick="updateBooking(${trip.id})">
+                                            <i class="fas fa-edit"></i> Изменить места
+                                        </button>
+                                        <button class="btn-small btn-danger" onclick="cancelBooking(${trip.id})">
+                                            <i class="fas fa-ban"></i> Отменить
+                                        </button>
+                                    </div>
+                                ` : ''}
                             </div>
                         `).join('')}
                     </div>
@@ -911,181 +936,6 @@ function initSearchForm() {
     }
 }
 
-// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
-
-function setupCityAutocomplete() {
-    // Простая реализация автодополнения
-    const cityInputs = ['from-input', 'to-input', 'trip-from', 'trip-to'];
-    
-    cityInputs.forEach(inputId => {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        
-        input.addEventListener('input', function(e) {
-            const value = e.target.value.trim();
-            if (value.length >= 2) {
-                showCitySuggestions(inputId, value);
-            } else {
-                hideSuggestions(inputId);
-            }
-        });
-    });
-}
-
-function showCitySuggestions(inputId, query) {
-    const input = document.getElementById(inputId);
-    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`) || 
-                           createSuggestionsContainer(inputId, input);
-    
-    const filteredCities = RUSSIAN_CITIES.filter(city => 
-        city.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 5);
-    
-    if (filteredCities.length === 0) {
-        suggestionsDiv.style.display = 'none';
-        return;
-    }
-    
-    suggestionsDiv.innerHTML = filteredCities.map(city => 
-        `<div class="suggestion-item" onclick="selectCity('${inputId}', '${city}')">
-            <i class="fas fa-city"></i> ${city}
-        </div>`
-    ).join('');
-    
-    suggestionsDiv.style.display = 'block';
-}
-
-function createSuggestionsContainer(inputId, input) {
-    const container = document.createElement('div');
-    container.id = `${inputId}-suggestions`;
-    container.className = 'suggestions-container';
-    input.parentNode.appendChild(container);
-    return container;
-}
-
-function selectCity(inputId, city) {
-    const input = document.getElementById(inputId);
-    input.value = city;
-    hideSuggestions(inputId);
-}
-
-function hideSuggestions(inputId) {
-    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`);
-    if (suggestionsDiv) {
-        suggestionsDiv.style.display = 'none';
-    }
-}
-
-// =============== ОБРАБОТКА СОБЫТИЙ ===============
-
-function setupEventListeners() {
-    console.log('⚙️ Setting up events...');
-    
-    // Навигация
-    document.querySelectorAll('[data-screen]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const screenId = this.dataset.screen;
-            console.log('📱 Navigate to:', screenId);
-            
-            // Проверка авторизации для защищенных экранов
-            if (['profile', 'create-trip', 'find-trip'].includes(screenId)) {
-                if (!currentUser) {
-                    showNotification('Пожалуйста, авторизуйтесь', 'warning');
-                    return;
-                }
-            }
-            
-            showScreen(screenId);
-        });
-    });
-    
-    // Закрытие модалок
-    document.querySelectorAll('.close-btn, .modal-close').forEach(btn => {
-        btn.addEventListener('click', closeModal);
-    });
-    
-    // Клик вне модального окна
-    window.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal')) {
-            closeModal();
-        }
-    });
-    
-    // Кнопка "Назад" в Telegram
-    if (tg.BackButton) {
-        tg.BackButton.onClick(() => {
-            if (window.currentScreen !== 'welcome') {
-                showScreen('welcome');
-            } else {
-                tg.close();
-            }
-        });
-    }
-    
-    // Инициализируем автодополнение после загрузки страницы
-    setTimeout(() => {
-        setupCityAutocomplete();
-        console.log('✅ City autocomplete initialized');
-    }, 1000);
-    
-    // Кнопка создания поездки
-    const submitBtn = document.querySelector('.submit-btn');
-    if (submitBtn) {
-        submitBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            console.log('🚗 Кнопка создания поездки нажата');
-            await createTrip();
-        });
-    }
-
-    // Кнопка поиска поездок
-    const searchBtn = document.querySelector('.search-btn');
-    if (searchBtn) {
-        searchBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            console.log('🔍 Кнопка поиска нажата');
-            await searchTrips();
-        });
-    }
-}
-
-// =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
-
-function showCustomModal(content) {
-    const modal = document.getElementById('modal');
-    if (modal) {
-        modal.innerHTML = content;
-        modal.style.display = 'block';
-    }
-}
-
-function closeModal() {
-    const modal = document.getElementById('modal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
-
-function showNotification(message, type = 'info') {
-    document.querySelectorAll('.notification').forEach(n => n.remove());
-    
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
-        <span>${message}</span>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => notification.classList.add('show'), 10);
-    
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
-}
-
 // =============== СОЗДАНИЕ ПОЕЗДКИ ===============
 
 async function createTrip() {
@@ -1148,6 +998,7 @@ async function createTrip() {
             document.getElementById('trip-from').value = '';
             document.getElementById('trip-to').value = '';
             document.getElementById('trip-price').value = '';
+            document.getElementById('trip-comment').value = '';
             // Возвращаем на главную
             setTimeout(() => showScreen('welcome'), 1500);
         } else {
@@ -1206,8 +1057,6 @@ async function searchTrips() {
         showNotification('Ошибка при поиске поездок', 'error');
     }
 }
-
-// =============== ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ ПОИСКА ===============
 
 function displaySearchResults(trips) {
     const resultsContainer = document.getElementById('search-results');
@@ -1318,7 +1167,558 @@ async function bookTrip(tripId) {
     }
 }
 
+// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
+
+function setupCityAutocomplete() {
+    // Простая реализация автодополнения
+    const cityInputs = ['from-input', 'to-input', 'trip-from', 'trip-to'];
+    
+    cityInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        
+        input.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            if (value.length >= 2) {
+                showCitySuggestions(inputId, value);
+            } else {
+                hideSuggestions(inputId);
+            }
+        });
+    });
+}
+
+function showCitySuggestions(inputId, query) {
+    const input = document.getElementById(inputId);
+    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`) || 
+                           createSuggestionsContainer(inputId, input);
+    
+    const filteredCities = RUSSIAN_CITIES.filter(city => 
+        city.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 5);
+    
+    if (filteredCities.length === 0) {
+        suggestionsDiv.style.display = 'none';
+        return;
+    }
+    
+    suggestionsDiv.innerHTML = filteredCities.map(city => 
+        `<div class="suggestion-item" onclick="selectCity('${inputId}', '${city}')">
+            <i class="fas fa-city"></i> ${city}
+        </div>`
+    ).join('');
+    
+    suggestionsDiv.style.display = 'block';
+}
+
+function createSuggestionsContainer(inputId, input) {
+    const container = document.createElement('div');
+    container.id = `${inputId}-suggestions`;
+    container.className = 'suggestions-container';
+    input.parentNode.appendChild(container);
+    return container;
+}
+
+function selectCity(inputId, city) {
+    const input = document.getElementById(inputId);
+    input.value = city;
+    hideSuggestions(inputId);
+}
+
+function hideSuggestions(inputId) {
+    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`);
+    if (suggestionsDiv) {
+        suggestionsDiv.style.display = 'none';
+    }
+}
+
+// =============== УПРАВЛЕНИЕ БРОНИРОВАНИЯМИ ===============
+
+async function updateBooking(bookingId) {
+    console.log('✏️ Обновление бронирования:', bookingId);
+    
+    if (!currentUser) {
+        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        return;
+    }
+    
+    const seats = parseInt(prompt('Введите новое количество мест:', '1'));
+    if (!seats || seats < 1) return;
+    
+    try {
+        const updateData = {
+            booked_seats: seats
+        };
+        
+        const response = await fetch(
+            `${API_BASE_URL}/api/bookings/${bookingId}?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData)
+            }
+        );
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showNotification('✅ Бронирование обновлено!', 'success');
+            // Обновляем профиль
+            loadFullProfile();
+        } else {
+            showNotification(result.detail || 'Ошибка обновления', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка обновления бронирования:', error);
+        showNotification('Ошибка обновления', 'error');
+    }
+}
+
+async function cancelBooking(bookingId) {
+    console.log('❌ Отмена бронирования:', bookingId);
+    
+    if (!currentUser || !confirm('Вы уверены, что хотите отменить бронирование?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/bookings/${bookingId}/cancel?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'POST'
+            }
+        );
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showNotification('✅ Бронирование отменено!', 'success');
+            // Обновляем профиль
+            loadFullProfile();
+        } else {
+            showNotification(result.detail || 'Ошибка отмены', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка отмены бронирования:', error);
+        showNotification('Ошибка отмены', 'error');
+    }
+}
+
+// =============== УПРАВЛЕНИЕ ПОЕЗДКАМИ (ВОДИТЕЛЬ) ===============
+
+async function showUpdateTripModal(tripId) {
+    console.log('✏️ Редактирование поездки:', tripId);
+    
+    try {
+        // Получаем данные поездки
+        const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}`);
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+            showNotification('Не удалось загрузить данные поездки', 'error');
+            return;
+        }
+        
+        const trip = result.trip;
+        
+        // Создаем модальное окно для редактирования
+        const modalContent = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-edit"></i> Редактировать поездку</h3>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="update-trip-form" onsubmit="event.preventDefault(); updateTrip(${tripId})">
+                        <div class="form-section">
+                            <h4><i class="fas fa-route"></i> Маршрут</h4>
+                            <div class="input-group">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <input type="text" id="edit-trip-from" value="${trip.route.from}" placeholder="Откуда">
+                            </div>
+                            <div class="input-group">
+                                <i class="fas fa-flag-checkered"></i>
+                                <input type="text" id="edit-trip-to" value="${trip.route.to}" placeholder="Куда">
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <h4><i class="fas fa-clock"></i> Дата и время</h4>
+                            <div class="input-row">
+                                <div class="input-group half">
+                                    <i class="fas fa-calendar"></i>
+                                    <input type="date" id="edit-trip-date" 
+                                           value="${trip.departure.date}"
+                                           min="${new Date().toISOString().split('T')[0]}">
+                                </div>
+                                <div class="input-group half">
+                                    <i class="fas fa-clock"></i>
+                                    <input type="time" id="edit-trip-time" value="${trip.departure.time}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <h4><i class="fas fa-car"></i> Детали поездки</h4>
+                            <div class="input-row">
+                                <div class="input-group half">
+                                    <i class="fas fa-users"></i>
+                                    <input type="number" id="edit-trip-seats" 
+                                           value="${trip.seats.available}"
+                                           min="1" max="10" placeholder="Количество мест">
+                                </div>
+                                <div class="input-group half">
+                                    <i class="fas fa-money-bill-wave"></i>
+                                    <input type="number" id="edit-trip-price" 
+                                           value="${trip.seats.price_per_seat}"
+                                           step="50" placeholder="Цена за место">
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <i class="fas fa-comment-alt"></i>
+                                <input type="text" id="edit-trip-comment" 
+                                       value="${trip.details.comment || ''}" 
+                                       placeholder="Комментарий">
+                            </div>
+                        </div>
+                        
+                        <div class="modal-actions">
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-save"></i> Сохранить изменения
+                            </button>
+                            <button type="button" class="btn-secondary" onclick="closeModal()">
+                                <i class="fas fa-times"></i> Отмена
+                            </button>
+                            <button type="button" class="btn-danger" onclick="cancelTrip(${tripId})" style="margin-top: 10px;">
+                                <i class="fas fa-ban"></i> Отменить поездку
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        
+        showCustomModal(modalContent);
+        
+        // Инициализируем автодополнение для полей ввода городов
+        setTimeout(() => {
+            setupEditFormAutocomplete();
+        }, 100);
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки данных поездки:', error);
+        showNotification('Ошибка загрузки данных', 'error');
+    }
+}
+
+function setupEditFormAutocomplete() {
+    const fromInput = document.getElementById('edit-trip-from');
+    const toInput = document.getElementById('edit-trip-to');
+    
+    if (fromInput) {
+        fromInput.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            if (value.length >= 2) {
+                showCitySuggestions('edit-trip-from', value);
+            } else {
+                hideSuggestions('edit-trip-from');
+            }
+        });
+    }
+    
+    if (toInput) {
+        toInput.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            if (value.length >= 2) {
+                showCitySuggestions('edit-trip-to', value);
+            } else {
+                hideSuggestions('edit-trip-to');
+            }
+        });
+    }
+}
+
+async function updateTrip(tripId) {
+    console.log('💾 Сохранение изменений поездки:', tripId);
+    
+    if (!currentUser) {
+        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        return;
+    }
+    
+    // Собираем данные из формы
+    const start_address = document.getElementById('edit-trip-from').value.trim();
+    const finish_address = document.getElementById('edit-trip-to').value.trim();
+    const dateStr = document.getElementById('edit-trip-date').value;
+    const departure_time = document.getElementById('edit-trip-time').value;
+    const available_seats = parseInt(document.getElementById('edit-trip-seats').value);
+    const price_per_seat = parseFloat(document.getElementById('edit-trip-price').value);
+    const comment = document.getElementById('edit-trip-comment').value.trim();
+    
+    // Валидация
+    if (!start_address || !finish_address || !dateStr || !departure_time || !available_seats || !price_per_seat) {
+        showNotification('Заполните все обязательные поля', 'warning');
+        return;
+    }
+    
+    // Преобразуем дату
+    const departure_date = new Date(dateStr + 'T' + departure_time);
+    
+    try {
+        const updateData = {
+            start_address: start_address,
+            finish_address: finish_address,
+            departure_date: departure_date.toISOString(),
+            departure_time: departure_time,
+            available_seats: available_seats,
+            price_per_seat: price_per_seat
+        };
+        
+        if (comment) {
+            updateData.comment = comment;
+        }
+        
+        console.log('📤 Отправка обновления поездки:', updateData);
+        
+        const response = await fetch(
+            `${API_BASE_URL}/api/trips/${tripId}?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData)
+            }
+        );
+        
+        const result = await response.json();
+        console.log('Ответ обновления поездки:', result);
+        
+        if (response.ok && result.success) {
+            showNotification('✅ Поездка успешно обновлена!', 'success');
+            closeModal();
+            // Обновляем профиль
+            loadFullProfile();
+        } else {
+            showNotification(result.detail || 'Ошибка обновления', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка обновления поездки:', error);
+        showNotification('Ошибка обновления', 'error');
+    }
+}
+
+async function cancelTrip(tripId) {
+    console.log('❌ Отмена поездки:', tripId);
+    
+    if (!currentUser || !confirm('Вы уверены, что хотите отменить поездку? Все бронирования также будут отменены.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/trips/${tripId}/cancel?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'POST'
+            }
+        );
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showNotification(`✅ Поездка отменена! Отменено бронирований: ${result.cancelled_bookings || 0}`, 'success');
+            closeModal();
+            // Обновляем профиль
+            loadFullProfile();
+        } else {
+            showNotification(result.detail || 'Ошибка отмены', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка отмены поездки:', error);
+        showNotification('Ошибка отмены', 'error');
+    }
+}
+
+async function showTripBookings(tripId) {
+    console.log('📋 Просмотр бронирований поездки:', tripId);
+    
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/trips/${tripId}/bookings?telegram_id=${currentUser.telegram_id}`
+        );
+        
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+            showNotification('Не удалось загрузить бронирования', 'error');
+            return;
+        }
+        
+        const bookings = result.bookings || [];
+        
+        const modalContent = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-users"></i> Бронирования поездки</h3>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 20px; color: #666; font-size: 14px;">
+                        Всего бронирований: ${bookings.length}
+                    </div>
+                    
+                    ${bookings.length > 0 ? `
+                        <div class="bookings-list">
+                            ${bookings.map(booking => `
+                                <div class="booking-item" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #3498db;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <div style="font-weight: bold;">
+                                            <i class="fas fa-user"></i> ${booking.passenger.name}
+                                        </div>
+                                        <span class="status-badge status-${booking.status}" style="padding: 3px 8px; border-radius: 12px; font-size: 12px;">
+                                            ${booking.status}
+                                        </span>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px;">
+                                        <div><i class="fas fa-chair"></i> Мест: ${booking.seats}</div>
+                                        <div><i class="fas fa-money-bill-wave"></i> ${booking.price} ₽</div>
+                                        ${booking.passenger.phone ? `<div><i class="fas fa-phone"></i> ${booking.passenger.phone}</div>` : ''}
+                                        <div><i class="fas fa-star"></i> Рейтинг: ${booking.passenger.rating.toFixed(1)}</div>
+                                    </div>
+                                    ${booking.notes ? `
+                                        <div style="margin-top: 10px; padding: 8px; background: #fff8e1; border-radius: 6px; font-size: 13px;">
+                                            <i class="fas fa-comment"></i> ${booking.notes}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>Пока нет бронирований</p>
+                        </div>
+                    `}
+                    
+                    <div class="modal-actions" style="margin-top: 20px;">
+                        <button class="btn-secondary" onclick="closeModal()">
+                            <i class="fas fa-times"></i> Закрыть
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        showCustomModal(modalContent);
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки бронирований:', error);
+        showNotification('Ошибка загрузки данных', 'error');
+    }
+}
+
+// =============== ОБРАБОТКА СОБЫТИЙ ===============
+
+function setupEventListeners() {
+    console.log('⚙️ Setting up events...');
+    
+    // Навигация
+    document.querySelectorAll('[data-screen]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const screenId = this.dataset.screen;
+            console.log('📱 Navigate to:', screenId);
+            
+            // Проверка авторизации для защищенных экранов
+            if (['profile', 'create-trip', 'find-trip'].includes(screenId)) {
+                if (!currentUser) {
+                    showNotification('Пожалуйста, авторизуйтесь', 'warning');
+                    return;
+                }
+            }
+            
+            showScreen(screenId);
+        });
+    });
+    
+    // Кнопка поиска поездок
+    const searchBtn = document.querySelector('.search-btn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', searchTrips);
+    }
+    
+    // Кнопка создания поездки
+    const submitBtn = document.querySelector('.submit-btn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', createTrip);
+    }
+    
+    // Закрытие модалок
+    document.querySelectorAll('.close-btn, .modal-close').forEach(btn => {
+        btn.addEventListener('click', closeModal);
+    });
+    
+    // Клик вне модального окна
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            closeModal();
+        }
+    });
+    
+    // Кнопка "Назад" в Telegram
+    if (tg.BackButton) {
+        tg.BackButton.onClick(() => {
+            if (window.currentScreen !== 'welcome') {
+                showScreen('welcome');
+            } else {
+                tg.close();
+            }
+        });
+    }
+    
+    // Инициализируем автодополнение после загрузки страницы
+    setTimeout(() => {
+        setupCityAutocomplete();
+        console.log('✅ City autocomplete initialized');
+    }, 1000);
+}
+
+// =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
+
+function showCustomModal(content) {
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.innerHTML = content;
+        modal.style.display = 'block';
+    }
+}
+
+function closeModal() {
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function showNotification(message, type = 'info') {
+    document.querySelectorAll('.notification').forEach(n => n.remove());
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        <span>${message}</span>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
 // =============== ГЛОБАЛЬНЫЕ ФУНКЦИИ ===============
+
 window.showScreen = showScreen;
 window.loadFullProfile = loadFullProfile;
 window.showAddCarModal = showAddCarModal;
@@ -1326,8 +1726,14 @@ window.setDefaultCar = setDefaultCar;
 window.deleteCar = deleteCar;
 window.saveCar = saveCar;
 window.closeModal = closeModal;
-window.showTripDetails = showTripDetails;
-window.bookTrip = bookTrip;
+window.selectCity = selectCity;
+window.updateBooking = updateBooking;
+window.cancelBooking = cancelBooking;
+window.showUpdateTripModal = showUpdateTripModal;
+window.updateTrip = updateTrip;
+window.cancelTrip = cancelTrip;
+window.showTripBookings = showTripBookings;
 window.createTrip = createTrip;
 window.searchTrips = searchTrips;
-window.selectCity = selectCity;
+window.bookTrip = bookTrip;
+window.showTripDetails = showTripDetails;
