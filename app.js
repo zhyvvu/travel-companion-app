@@ -803,7 +803,68 @@ function displayBasicProfile() {
 // Загрузить профиль
 async function loadProfile() {
     if (!requireAuth('просматривать профиль')) return;
-    await loadFullProfile();
+    
+    const profileEl = document.getElementById('profile-data');
+    if (!profileEl) return;
+    
+    profileEl.innerHTML = '<div class="loader"></div>';
+    
+    console.log('🔄 Загрузка профиля...');
+    console.log('Telegram ID:', currentUser.telegram_id);
+    console.log('API URL:', `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`);
+    
+    try {
+        const startTime = Date.now();
+        const response = await fetch(
+            `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
+        );
+        const endTime = Date.now();
+        
+        console.log(`⏱️  Время ответа: ${endTime - startTime}ms`);
+        console.log('📊 Статус ответа:', response.status);
+        console.log('📊 Заголовки:', response.headers);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Данные профиля:', data);
+            
+            if (data.success) {
+                // Используйте упрощенное отображение
+                profileEl.innerHTML = `
+                    <div class="profile-card">
+                        <div class="profile-header">
+                            <div class="profile-avatar">
+                                ${data.user.first_name.charAt(0)}${data.user.last_name?.charAt(0) || ''}
+                            </div>
+                            <div class="profile-name">${data.user.first_name} ${data.user.last_name || ''}</div>
+                            <div class="profile-role">${data.user.role || 'Пассажир'}</div>
+                        </div>
+                        
+                        <div style="padding: 20px; text-align: center;">
+                            <h3>✅ Профиль загружен!</h3>
+                            <p>Имя: ${data.user.first_name}</p>
+                            <p>Рейтинг водителя: ${data.user.ratings?.driver || '5.0'}</p>
+                            <p>Автомобилей: ${data.cars?.length || 0}</p>
+                            <p>Поездок: ${data.driver_trips?.length || 0}</p>
+                            
+                            <button class="btn-primary" onclick="showAddCarModal()" style="margin-top: 20px;">
+                                <i class="fas fa-plus"></i> Добавить автомобиль
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                profileEl.innerHTML = `<div class="error">Ошибка API: ${data.message || 'Неизвестная ошибка'}</div>`;
+            }
+        } else {
+            const errorText = await response.text();
+            console.error('❌ Ошибка HTTP:', response.status, errorText);
+            profileEl.innerHTML = `<div class="error">Ошибка сервера: ${response.status}</div>`;
+        }
+    } catch (error) {
+        console.error('❌ Ошибка сети:', error);
+        profileEl.innerHTML = `<div class="error">Ошибка сети: ${error.message}</div>`;
+    }
 }
 
 // =============== СОЗДАНИЕ ПОЕЗДКИ (ОБНОВЛЕННАЯ) ===============
