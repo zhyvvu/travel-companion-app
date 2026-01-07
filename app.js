@@ -587,15 +587,27 @@ async function loadFullProfile() {
             `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
         );
         
+        console.log('Profile response status:', response.status); // ← ДОБАВЛЕНО
+        
         if (response.ok) {
             const data = await response.json();
+            console.log('Profile data:', data); // ← ДОБАВЛЕНО
+            
             if (data.success) {
                 displayFullProfile(data);
                 return data;
+            } else {
+                console.error('API returned success=false:', data);
             }
+        } else {
+            const errorText = await response.text();
+            console.error('Profile error:', response.status, errorText); // ← ДОБАВЛЕНО
         }
+        
+        // Если дошли сюда - что-то пошло не так
         displayBasicProfile();
         return null;
+        
     } catch (error) {
         console.error('Ошибка загрузки профиля:', error);
         displayBasicProfile();
