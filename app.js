@@ -1,4 +1,4 @@
-// app.js - ОПТИМИЗИРОВАННЫЙ ДЛЯ TELEGRAM WEB APP
+// app.js - ПОЛНАЯ ВЕРСИЯ С УПРАВЛЕНИЕМ АВТОМОБИЛЯМИ
 const tg = window.Telegram.WebApp;
 
 // Конфигурация API
@@ -8,6 +8,7 @@ const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 let currentUser = null;
 let authInProgress = false;
 let currentScreen = 'welcome';
+let userCars = []; // Список автомобилей пользователя
 
 // Список городов России для автодополнения
 const RUSSIAN_CITIES = [
@@ -23,14 +24,14 @@ const RUSSIAN_CITIES = [
     'Севастополь', 'Нижний Тагил', 'Дзержинск', 'Орск', 'Сургут'
 ];
 
+// =============== ОСНОВНЫЕ ФУНКЦИИ ===============
+
 // Проверка Telegram данных
 function getTelegramUser() {
-    // Способ 1: initDataUnsafe (основной)
     if (tg.initDataUnsafe?.user) {
         return tg.initDataUnsafe.user;
     }
     
-    // Способ 2: initData (парсим строку)
     if (tg.initData) {
         try {
             const params = new URLSearchParams(tg.initData);
@@ -57,20 +58,17 @@ function requireAuth(action = 'выполнить это действие') {
 }
 
 // =============== ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ===============
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Telegram Web App initialized');
     
     try {
-        // Инициализация приложения
         await initApp();
         setupEventListeners();
         loadStats();
         setupCityAutocomplete();
         
-        // Готовность приложения
-        if (tg.ready) {
-            tg.ready();
-        }
+        if (tg.ready) tg.ready();
         console.log('App ready');
     } catch (error) {
         console.error('Error during initialization:', error);
@@ -82,14 +80,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function initApp() {
     try {
         console.log('Initializing app...');
-        
-        // Получаем пользователя Telegram
         const telegramUser = getTelegramUser();
         
         if (telegramUser) {
             console.log('✅ Telegram User found:', telegramUser);
             
-            // Сохраняем данные
             currentUser = {
                 telegram_id: telegramUser.id,
                 first_name: telegramUser.first_name,
@@ -99,10 +94,8 @@ async function initApp() {
                 is_premium: telegramUser.is_premium || false
             };
             
-            // Авторизуем пользователя
             await authenticateUser(telegramUser);
             
-            // Настройка WebApp
             try {
                 if (tg.expand) tg.expand();
                 if (tg.setHeaderColor) tg.setHeaderColor('#2481cc');
@@ -114,7 +107,6 @@ async function initApp() {
         } else {
             console.warn('❌ Telegram user data not available');
             
-            // Проверяем, в режиме ли разработки
             const isDevMode = window.location.hostname === 'localhost' || 
                              window.location.hostname === '127.0.0.1';
             
@@ -131,7 +123,6 @@ async function initApp() {
         console.error('Ошибка инициализации:', error);
         showNotification('Ошибка загрузки приложения', 'error');
         
-        // Фолбэк на тестового пользователя
         if (window.location.hostname === 'localhost' || 
             window.location.hostname === '127.0.0.1') {
             initTestUser();
@@ -191,7 +182,6 @@ async function authenticateUser(telegramUser) {
     if (authInProgress) return;
     authInProgress = true;
     
-    // Показываем лоадер
     const userInfoEl = document.getElementById('user-info');
     if (userInfoEl) {
         userInfoEl.innerHTML = `<div class="loader"></div>`;
@@ -223,20 +213,20 @@ async function authenticateUser(telegramUser) {
             console.log('Auth data:', data);
             
             if (data.success) {
-                // Обновляем данные пользователя
                 currentUser = {
                     ...currentUser,
                     ...data.user,
                     token: data.token
                 };
                 
-                // Сохраняем в localStorage
                 localStorage.setItem('travel_user', JSON.stringify(currentUser));
                 localStorage.setItem('last_auth_time', Date.now());
                 
-                // Обновляем UI
                 updateUserInfo();
                 updateWelcomeMessage();
+                
+                // Загружаем автомобили пользователя
+                await loadUserCars();
                 
                 showNotification('✅ Авторизация успешна', 'success');
             } else {
@@ -250,12 +240,10 @@ async function authenticateUser(telegramUser) {
     } catch (error) {
         console.error('Ошибка аутентификации:', error);
         
-        // Пробуем загрузить из localStorage
         const savedUser = localStorage.getItem('travel_user');
         const lastAuthTime = localStorage.getItem('last_auth_time');
         const hoursSinceLastAuth = lastAuthTime ? (Date.now() - lastAuthTime) / (1000 * 60 * 60) : 24;
         
-        // Если данные свежие (менее 24 часов), используем их
         if (savedUser && hoursSinceLastAuth < 24) {
             currentUser = JSON.parse(savedUser);
             updateUserInfo();
@@ -263,7 +251,6 @@ async function authenticateUser(telegramUser) {
             showNotification('⚠️ Используем сохраненные данные', 'warning');
         } else {
             showNotification('❌ Ошибка авторизации. Проверьте подключение', 'error');
-            // Показываем кнопку для повторной попытки
             if (userInfoEl) {
                 userInfoEl.innerHTML = `
                     <button class="btn-retry-auth" onclick="retryAuth()">
@@ -327,7 +314,607 @@ function updateWelcomeMessage() {
     }
 }
 
+// =============== УПРАВЛЕНИЕ АВТОМОБИЛЯМИ ===============
+
+// Загрузить автомобили пользователя
+async function loadUserCars() {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/users/cars?telegram_id=${currentUser.telegram_id}`
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                userCars = data.cars || [];
+                updateCarSelect();
+                return data.cars;
+            }
+        }
+        return [];
+    } catch (error) {
+        console.error('Ошибка загрузки автомобилей:', error);
+        return [];
+    }
+}
+
+// Обновить select с автомобилями
+function updateCarSelect() {
+    const carSelect = document.getElementById('car-model-select');
+    const carModelInput = document.getElementById('car-model');
+    
+    if (carSelect && carModelInput) {
+        // Очищаем select
+        carSelect.innerHTML = '<option value="">Выберите автомобиль</option>';
+        
+        if (userCars.length > 0) {
+            // Добавляем автомобили в select
+            userCars.forEach(car => {
+                const option = document.createElement('option');
+                option.value = car.id;
+                option.textContent = `${car.model} ${car.color ? `(${car.color})` : ''} ${car.is_default ? '⭐' : ''}`;
+                if (car.is_default) {
+                    option.selected = true;
+                    carModelInput.value = car.model;
+                }
+                carSelect.appendChild(option);
+            });
+            
+            // Показываем select, скрываем input
+            carSelect.style.display = 'block';
+            carModelInput.style.display = 'none';
+        } else {
+            // Показываем input, скрываем select
+            carSelect.style.display = 'none';
+            carModelInput.style.display = 'block';
+        }
+    }
+}
+
+// Получить выбранный автомобиль
+function getSelectedCar() {
+    const carSelect = document.getElementById('car-model-select');
+    const carModelInput = document.getElementById('car-model');
+    
+    if (carSelect && carSelect.style.display !== 'none') {
+        const selectedCarId = carSelect.value;
+        if (selectedCarId) {
+            return userCars.find(car => car.id == selectedCarId);
+        }
+    }
+    
+    // Если select не виден, используем input
+    if (carModelInput && carModelInput.style.display !== 'none') {
+        return {
+            model: carModelInput.value,
+            color: null,
+            seats: 4
+        };
+    }
+    
+    return null;
+}
+
+// Показать модальное окно добавления автомобиля
+function showAddCarModal() {
+    const modalContent = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-car"></i> Добавить автомобиль</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-car-form" onsubmit="event.preventDefault(); saveCar()">
+                    <div class="input-group">
+                        <i class="fas fa-car"></i>
+                        <input type="text" id="new-car-model" placeholder="Модель автомобиля *" required>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="input-group half">
+                            <i class="fas fa-palette"></i>
+                            <input type="text" id="new-car-color" placeholder="Цвет">
+                        </div>
+                        <div class="input-group half">
+                            <i class="fas fa-id-card"></i>
+                            <input type="text" id="new-car-plate" placeholder="Госномер">
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="input-group half">
+                            <i class="fas fa-calendar"></i>
+                            <input type="number" id="new-car-year" placeholder="Год выпуска" min="1990" max="2024">
+                        </div>
+                        <div class="input-group half">
+                            <i class="fas fa-users"></i>
+                            <select id="new-car-seats">
+                                <option value="2">2 места</option>
+                                <option value="4" selected>4 места</option>
+                                <option value="5">5 мест</option>
+                                <option value="7">7 мест</option>
+                                <option value="8">8 мест</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-car-side"></i>
+                        <select id="new-car-type">
+                            <option value="">Тип автомобиля</option>
+                            <option value="sedan">Седан</option>
+                            <option value="hatchback">Хэтчбек</option>
+                            <option value="suv">Внедорожник</option>
+                            <option value="minivan">Минивэн</option>
+                            <option value="coupe">Купе</option>
+                        </select>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="new-car-default" checked>
+                        <label for="new-car-default">Использовать как основной автомобиль</label>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-save"></i> Сохранить
+                        </button>
+                        <button type="button" class="btn-secondary" onclick="closeModal()">
+                            <i class="fas fa-times"></i> Отмена
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    showCustomModal(modalContent);
+}
+
+// Сохранить автомобиль
+async function saveCar() {
+    const model = document.getElementById('new-car-model').value.trim();
+    const color = document.getElementById('new-car-color').value.trim();
+    const plate = document.getElementById('new-car-plate').value.trim();
+    const year = document.getElementById('new-car-year').value;
+    const seats = document.getElementById('new-car-seats').value;
+    const carType = document.getElementById('new-car-type').value;
+    const isDefault = document.getElementById('new-car-default').checked;
+    
+    if (!model) {
+        showNotification('Введите модель автомобиля', 'warning');
+        return;
+    }
+    
+    try {
+        const carData = {
+            model: model,
+            color: color || null,
+            license_plate: plate || null,
+            year: year ? parseInt(year) : null,
+            seats: parseInt(seats),
+            car_type: carType || null,
+            is_default: isDefault
+        };
+        
+        const response = await fetch(
+            `${API_BASE_URL}/api/users/cars?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(carData)
+            }
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                showNotification('✅ Автомобиль добавлен', 'success');
+                closeModal();
+                await loadUserCars(); // Обновляем список авто
+            }
+        } else {
+            const errorText = await response.text();
+            showNotification(`Ошибка: ${errorText}`, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка сохранения авто:', error);
+        showNotification('Ошибка сохранения', 'error');
+    }
+}
+
+// Установить автомобиль по умолчанию
+async function setDefaultCar(carId) {
+    if (!confirm('Сделать этот автомобиль основным?')) return;
+    
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/users/cars/${carId}?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_default: true })
+            }
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                showNotification('✅ Автомобиль установлен как основной', 'success');
+                await loadUserCars(); // Обновляем список
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка установки авто по умолчанию:', error);
+        showNotification('Ошибка обновления', 'error');
+    }
+}
+
+// Удалить автомобиль
+async function deleteCar(carId) {
+    if (!confirm('Удалить этот автомобиль?')) return;
+    
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/users/cars/${carId}?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'DELETE'
+            }
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                showNotification('✅ Автомобиль удален', 'success');
+                await loadUserCars(); // Обновляем список
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка удаления авто:', error);
+        showNotification('Ошибка удаления', 'error');
+    }
+}
+
+// =============== ПОЛНЫЙ ПРОФИЛЬ ===============
+
+// Загрузить полный профиль
+async function loadFullProfile() {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
+        );
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                displayFullProfile(data);
+                return data;
+            }
+        }
+        displayBasicProfile();
+        return null;
+    } catch (error) {
+        console.error('Ошибка загрузки профиля:', error);
+        displayBasicProfile();
+        return null;
+    }
+}
+
+// Отобразить полный профиль
+function displayFullProfile(data) {
+    const profileEl = document.getElementById('profile-data');
+    if (!profileEl) return;
+    
+    const user = data.user;
+    const cars = data.cars || [];
+    const driverTrips = data.driver_trips || [];
+    const passengerTrips = data.passenger_trips || [];
+    
+    profileEl.innerHTML = `
+        <div class="full-profile">
+            <!-- Заголовок профиля -->
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    ${user.first_name.charAt(0)}${user.last_name?.charAt(0) || ''}
+                </div>
+                <div class="profile-name">${user.first_name} ${user.last_name || ''}</div>
+                <div class="profile-role">${user.role === 'driver' ? 'Водитель' : user.role === 'both' ? 'Водитель и пассажир' : 'Пассажир'}</div>
+                <div class="profile-stats">
+                    <span><i class="fas fa-car"></i> ${driverTrips.length} поездок</span>
+                    <span><i class="fas fa-user"></i> ${passengerTrips.length} бронирований</span>
+                </div>
+            </div>
+            
+            <!-- Статистика -->
+            <div class="profile-section">
+                <h3><i class="fas fa-chart-line"></i> Статистика</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">${user.stats.driver_trips || 0}</div>
+                        <div class="stat-label">Всего поездок как водитель</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${user.stats.passenger_trips || 0}</div>
+                        <div class="stat-label">Всего поездок как пассажир</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${user.ratings.driver?.toFixed(1) || '5.0'}</div>
+                        <div class="stat-label">Рейтинг водителя</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${user.ratings.passenger?.toFixed(1) || '5.0'}</div>
+                        <div class="stat-label">Рейтинг пассажира</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Автомобили -->
+            <div class="profile-section">
+                <div class="section-header">
+                    <h3><i class="fas fa-car"></i> Мои автомобили (${cars.length})</h3>
+                    <button class="btn-small" onclick="showAddCarModal()">
+                        <i class="fas fa-plus"></i> Добавить
+                    </button>
+                </div>
+                
+                ${cars.length > 0 ? `
+                    <div class="cars-list">
+                        ${cars.map(car => `
+                            <div class="car-card ${car.is_default ? 'default-car' : ''}">
+                                <div class="car-header">
+                                    <h4>${car.model} ${car.year ? `(${car.year})` : ''}</h4>
+                                    ${car.is_default ? '<span class="default-badge">По умолчанию</span>' : ''}
+                                </div>
+                                <div class="car-details">
+                                    ${car.color ? `<div><i class="fas fa-palette"></i> ${car.color}</div>` : ''}
+                                    ${car.license_plate ? `<div><i class="fas fa-id-card"></i> ${car.license_plate}</div>` : ''}
+                                    ${car.seats ? `<div><i class="fas fa-users"></i> ${car.seats} мест</div>` : ''}
+                                </div>
+                                <div class="car-actions">
+                                    ${!car.is_default ? `
+                                        <button class="btn-small" onclick="setDefaultCar(${car.id})">
+                                            <i class="fas fa-star"></i> Сделать основным
+                                        </button>
+                                    ` : ''}
+                                    <button class="btn-small btn-danger" onclick="deleteCar(${car.id})">
+                                        <i class="fas fa-trash"></i> Удалить
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="empty-state">
+                        <i class="fas fa-car"></i>
+                        <p>У вас пока нет автомобилей</p>
+                        <button class="btn-primary" onclick="showAddCarModal()">
+                            <i class="fas fa-plus"></i> Добавить первый автомобиль
+                        </button>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Поездки как водитель -->
+            <div class="profile-section">
+                <h3><i class="fas fa-road"></i> Мои поездки как водитель (${driverTrips.length})</h3>
+                
+                ${driverTrips.length > 0 ? `
+                    <div class="trips-list">
+                        ${driverTrips.map(trip => `
+                            <div class="trip-item">
+                                <div class="trip-route">
+                                    <strong>${trip.from} → ${trip.to}</strong>
+                                </div>
+                                <div class="trip-info">
+                                    <span><i class="fas fa-calendar"></i> ${trip.date}</span>
+                                    <span><i class="fas fa-users"></i> ${trip.seats} мест</span>
+                                    <span><i class="fas fa-money-bill-wave"></i> ${trip.price} ₽</span>
+                                    <span class="status-badge status-${trip.status}">${trip.status}</span>
+                                </div>
+                                <div class="trip-passengers">
+                                    <i class="fas fa-user-friends"></i> Пассажиров: ${trip.passengers_count}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="empty-state small">
+                        <i class="fas fa-road"></i>
+                        <p>У вас пока нет поездок как водитель</p>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Поездки как пассажир -->
+            <div class="profile-section">
+                <h3><i class="fas fa-user"></i> Мои поездки как пассажир (${passengerTrips.length})</h3>
+                
+                ${passengerTrips.length > 0 ? `
+                    <div class="trips-list">
+                        ${passengerTrips.map(trip => `
+                            <div class="trip-item">
+                                <div class="trip-route">
+                                    <strong>${trip.from} → ${trip.to}</strong>
+                                    <div class="trip-driver">
+                                        <i class="fas fa-user"></i> ${trip.driver_name}
+                                    </div>
+                                </div>
+                                <div class="trip-info">
+                                    <span><i class="fas fa-calendar"></i> ${trip.date}</span>
+                                    <span><i class="fas fa-users"></i> ${trip.seats} мест</span>
+                                    <span><i class="fas fa-money-bill-wave"></i> ${trip.price} ₽</span>
+                                    <span class="status-badge status-${trip.status}">${trip.status}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="empty-state small">
+                        <i class="fas fa-user"></i>
+                        <p>У вас пока нет поездок как пассажир</p>
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+// Базовый профиль
+function displayBasicProfile() {
+    const profileEl = document.getElementById('profile-data');
+    if (!profileEl) return;
+    
+    profileEl.innerHTML = `
+        <div class="profile-card">
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    ${currentUser.first_name.charAt(0)}${currentUser.last_name?.charAt(0) || ''}
+                </div>
+                <div class="profile-name">${currentUser.first_name} ${currentUser.last_name || ''}</div>
+                <div class="profile-role">Пассажир</div>
+            </div>
+            
+            <p>Данные профиля загружаются...</p>
+            
+            <div class="profile-actions">
+                <button class="btn-primary" onclick="showAddCarModal()">
+                    <i class="fas fa-plus"></i> Добавить автомобиль
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Загрузить профиль
+async function loadProfile() {
+    if (!requireAuth('просматривать профиль')) return;
+    await loadFullProfile();
+}
+
+// =============== СОЗДАНИЕ ПОЕЗДКИ (ОБНОВЛЕННАЯ) ===============
+
+async function createTrip() {
+    if (!requireAuth('создать поездку')) return;
+    
+    // Проверяем наличие автомобилей
+    if (userCars.length === 0) {
+        const addCar = confirm('Для создания поездки нужно добавить автомобиль. Добавить сейчас?');
+        if (addCar) {
+            showAddCarModal();
+            return;
+        } else {
+            showNotification('❌ Невозможно создать поездку без автомобиля', 'error');
+            return;
+        }
+    }
+    
+    const from = document.getElementById('trip-from').value.trim();
+    const to = document.getElementById('trip-to').value.trim();
+    const date = document.getElementById('trip-date').value;
+    const time = document.getElementById('trip-time').value;
+    const seats = document.getElementById('seats-count').value;
+    const price = document.getElementById('trip-price').value;
+    const comment = document.getElementById('trip-comment').value.trim();
+    
+    // Получаем выбранный автомобиль
+    const selectedCar = getSelectedCar();
+    if (!selectedCar || !selectedCar.model) {
+        showNotification('Выберите автомобиль', 'warning');
+        return;
+    }
+    
+    // Проверка полей
+    if (!from || !to || !date || !time || !seats || !price) {
+        showNotification('Заполните все обязательные поля', 'warning');
+        return;
+    }
+    
+    if (parseFloat(price) <= 0) {
+        showNotification('Цена должна быть больше 0', 'warning');
+        return;
+    }
+    
+    if (parseInt(seats) <= 0) {
+        showNotification('Количество мест должно быть больше 0', 'warning');
+        return;
+    }
+    
+    try {
+        const tripData = {
+            departure_date: `${date}T${time}:00`,
+            departure_time: time,
+            start_address: from,
+            finish_address: to,
+            available_seats: parseInt(seats),
+            price_per_seat: parseFloat(price),
+            comment: comment || null
+        };
+        
+        console.log('Creating trip with car:', selectedCar);
+        
+        const response = await fetch(
+            `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(tripData)
+            }
+        );
+        
+        console.log('Create trip response status:', response.status);
+        
+        const responseText = await response.text();
+        console.log('Create trip response body:', responseText);
+        
+        if (response.ok) {
+            const data = JSON.parse(responseText);
+            if (data.success) {
+                showNotification('🎉 Поездка успешно создана!', 'success');
+                showScreen('welcome');
+                clearTripForm();
+                loadStats();
+            } else {
+                showNotification(data.message || 'Ошибка создания поездки', 'error');
+            }
+        } else {
+            console.error('Create trip error:', responseText);
+            showNotification(`Ошибка сервера: ${response.status}`, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка создания поездки:', error);
+        showNotification('Ошибка подключения к серверу', 'error');
+    }
+}
+
+// Очистить форму создания
+function clearTripForm() {
+    document.getElementById('trip-from').value = '';
+    document.getElementById('trip-to').value = '';
+    document.getElementById('trip-price').value = '';
+    document.getElementById('trip-comment').value = '';
+    
+    // Устанавливаем завтрашнюю дату
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('trip-date').value = tomorrow.toISOString().split('T')[0];
+    
+    // Скрываем кнопки очистки
+    document.querySelectorAll('.clear-city-btn').forEach(btn => {
+        if (btn) btn.style.display = 'none';
+    });
+    
+    // Сбрасываем выбор автомобиля
+    updateCarSelect();
+}
+
 // =============== СЛУШАТЕЛИ СОБЫТИЙ ===============
+
 function setupEventListeners() {
     // Устанавливаем сегодняшнюю дату по умолчанию
     const today = new Date().toISOString().split('T')[0];
@@ -411,7 +998,7 @@ function setupEventListeners() {
     }
 }
 
-// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
+// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ (остается как было) ===============
 function setupCityAutocomplete() {
     const cityInputs = ['from-input', 'to-input', 'trip-from', 'trip-to'];
     
@@ -482,7 +1069,6 @@ function hideSuggestions(inputId) {
 }
 
 function setupCityInputListeners() {
-    // Поля для автодополнения городов
     const cityInputs = [
         { id: 'from-input', container: 'search-form' },
         { id: 'to-input', container: 'search-form' },
@@ -494,13 +1080,11 @@ function setupCityInputListeners() {
         const input = document.getElementById(id);
         if (!input) return;
         
-        // Создаем контейнер для автодополнения
         const wrapper = document.createElement('div');
         wrapper.className = 'city-input-wrapper';
         input.parentNode.insertBefore(wrapper, input);
         wrapper.appendChild(input);
         
-        // Кнопка очистки
         const clearBtn = document.createElement('button');
         clearBtn.className = 'clear-city-btn';
         clearBtn.innerHTML = '<i class="fas fa-times"></i>';
@@ -513,13 +1097,11 @@ function setupCityInputListeners() {
         };
         wrapper.appendChild(clearBtn);
         
-        // Контейнер для списка автодополнения
         const autocompleteList = document.createElement('div');
         autocompleteList.className = 'autocomplete-list';
         autocompleteList.id = `${id}-autocomplete`;
         wrapper.appendChild(autocompleteList);
         
-        // Обработчики событий
         input.addEventListener('input', (e) => {
             const value = e.target.value.trim();
             clearBtn.style.display = value ? 'block' : 'none';
@@ -542,7 +1124,6 @@ function setupCityInputListeners() {
             setTimeout(() => hideAutocomplete(id), 200);
         });
         
-        // Обработка клавиш
         input.addEventListener('keydown', (e) => {
             const autocompleteList = document.getElementById(`${id}-autocomplete`);
             const items = autocompleteList?.querySelectorAll('.autocomplete-item');
@@ -569,14 +1150,12 @@ function setupCityInputListeners() {
         });
     });
     
-    // Клик по документу для скрытия автодополнения
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.city-input-wrapper')) {
             cityInputs.forEach(({ id }) => hideAutocomplete(id));
         }
     });
     
-    // Запускаем автодополнение после загрузки
     setTimeout(() => {
         setupCityAutocomplete();
         console.log('City autocomplete initialized');
@@ -604,7 +1183,6 @@ function showCityAutocomplete(inputId, query) {
     const autocompleteList = document.getElementById(`${inputId}-autocomplete`);
     if (!autocompleteList) return;
     
-    // Фильтруем города по запросу
     const filteredCities = RUSSIAN_CITIES.filter(city => 
         city.toLowerCase().includes(query.toLowerCase())
     ).slice(0, 8);
@@ -614,7 +1192,6 @@ function showCityAutocomplete(inputId, query) {
         return;
     }
     
-    // Создаем HTML для списка
     let html = '';
     filteredCities.forEach(city => {
         const highlighted = highlightMatch(city, query);
@@ -629,18 +1206,15 @@ function showCityAutocomplete(inputId, query) {
     autocompleteList.innerHTML = html;
     autocompleteList.style.display = 'block';
     
-    // Добавляем обработчики кликов
     autocompleteList.querySelectorAll('.autocomplete-item').forEach(item => {
         item.addEventListener('click', () => {
             const input = document.getElementById(inputId);
             input.value = item.dataset.city;
             hideAutocomplete(inputId);
             
-            // Показываем кнопку очистки
             const clearBtn = input.parentNode.querySelector('.clear-city-btn');
             if (clearBtn) clearBtn.style.display = 'block';
             
-            // Переходим к следующему полю, если нужно
             if (inputId === 'from-input' || inputId === 'trip-from') {
                 setTimeout(() => {
                     const nextInput = inputId === 'from-input' ? 
@@ -676,8 +1250,8 @@ function hideAutocomplete(inputId) {
 }
 
 // =============== УПРАВЛЕНИЕ ЭКРАНАМИ ===============
+
 function showScreen(screenId) {
-    // Для экрана приветствия не требуется авторизация
     if (screenId === 'welcome') {
         document.querySelectorAll('.screen').forEach(screen => {
             screen.classList.remove('active');
@@ -691,14 +1265,11 @@ function showScreen(screenId) {
             currentScreen = screenId;
             updateNavButtons(screenId);
             
-            if (tg.BackButton) {
-                tg.BackButton.hide();
-            }
+            if (tg.BackButton) tg.BackButton.hide();
         }
         return;
     }
     
-    // Для других экранов проверяем авторизацию
     if (!currentUser || !currentUser.telegram_id) {
         showNotification('Пожалуйста, авторизуйтесь', 'warning');
         return;
@@ -715,7 +1286,6 @@ function showScreen(screenId) {
         screen.style.display = 'block';
         currentScreen = screenId;
         
-        // Настройка кнопки "Назад" в Telegram
         if (tg.BackButton) {
             if (screenId === 'welcome') {
                 tg.BackButton.hide();
@@ -727,19 +1297,14 @@ function showScreen(screenId) {
         
         updateNavButtons(screenId);
         
-        // Загружаем данные для экрана
         switch(screenId) {
             case 'profile':
                 loadProfile();
-                break;
-            case 'my-trips':
-                loadMyTrips();
                 break;
         }
     }
 }
 
-// Обновить навигационные кнопки
 function updateNavButtons(activeScreen) {
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -749,7 +1314,7 @@ function updateNavButtons(activeScreen) {
     });
 }
 
-// =============== ПОИСК ПОЕЗДОК ===============
+// =============== ПОИСК ПОЕЗДОК (остается как было) ===============
 async function searchTrips() {
     if (!requireAuth('искать поездки')) return;
     
@@ -826,18 +1391,18 @@ async function searchTrips() {
     }
 }
 
-// Отобразить результаты поиска
 function displaySearchResults(trips) {
     const resultsEl = document.getElementById('search-results');
     
-    console.log('Displaying trips:', trips);
-    
-    if (!trips || !Array.isArray(trips) || trips.length === 0) {
+    if (!trips || trips.length === 0) {
         resultsEl.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-search"></i>
                 <h3>Поездки не найдены</h3>
                 <p>Попробуйте изменить параметры поиска</p>
+                <button class="btn-secondary" onclick="clearSearchForm()">
+                    <i class="fas fa-redo"></i> Очистить форму
+                </button>
             </div>
         `;
         return;
@@ -846,55 +1411,31 @@ function displaySearchResults(trips) {
     let html = `
         <div class="search-header">
             <h3>Найдено поездок: ${trips.length}</h3>
+            <button class="btn-small" onclick="clearSearchForm()">
+                <i class="fas fa-times"></i> Очистить
+            </button>
         </div>
     `;
     
-    trips.forEach((trip, index) => {
-        // Безопасное получение данных
-        const driverName = trip.driver?.name || 
-                          `${trip.driver?.first_name || ''} ${trip.driver?.last_name || ''}`.trim() || 
-                          'Неизвестный водитель';
-        
-        const driverInitials = trip.driver?.avatar_initials || 
-                              (driverName.charAt(0) + (driverName.split(' ')[1]?.charAt(0) || '')).toUpperCase();
-        
-        const rating = trip.driver?.rating?.toFixed(1) || '5.0';
-        const price = trip.seats?.price_per_seat || 0;
-        
-        const fromCity = trip.route?.from_city || 
-                        trip.route?.from?.split(',')[0] || 
-                        'Не указано';
-        
-        const toCity = trip.route?.to_city || 
-                      trip.route?.to?.split(',')[0] || 
-                      'Не указано';
-        
-        const date = trip.departure?.date || '--.--.----';
-        const time = trip.departure?.time || 
-                    (trip.departure?.datetime?.split(' ')[1]) || 
-                    '--:--';
-        
-        const seats = trip.seats?.available || 0;
-        const carModel = trip.car_info?.model || '';
-        const carColor = trip.car_info?.color || '';
-        const comment = trip.details?.comment || '';
+    trips.forEach(trip => {
+        const timeOnly = trip.departure?.datetime?.split(' ')[1] || trip.departure?.time || '--:--';
         
         html += `
             <div class="trip-card" onclick="showTripDetails(${trip.id})">
                 <div class="trip-header">
                     <div class="driver-info">
                         <div class="driver-avatar">
-                            ${driverInitials}
+                            ${trip.driver?.avatar_initials || '??'}
                         </div>
                         <div>
-                            <div class="driver-name">${driverName}</div>
+                            <div class="driver-name">${trip.driver?.name || 'Неизвестный водитель'}</div>
                             <div class="driver-rating">
-                                ⭐ ${rating}
+                                ⭐ ${trip.driver?.rating?.toFixed(1) || '5.0'}
                             </div>
                         </div>
                     </div>
                     <div class="trip-price">
-                        <span class="price">${price} ₽</span>
+                        <span class="price">${trip.seats?.price_per_seat || 0} ₽</span>
                         <span class="per-seat">за место</span>
                     </div>
                 </div>
@@ -902,43 +1443,43 @@ function displaySearchResults(trips) {
                 <div class="trip-route">
                     <div class="route-from">
                         <i class="fas fa-map-marker-alt" style="color: #e74c3c;"></i>
-                        <span class="route-city">${fromCity}</span>
+                        <span class="route-city">${trip.route?.from_city || trip.route?.from?.split(',')[0] || 'Не указано'}</span>
                     </div>
                     <div class="route-arrow">
                         <i class="fas fa-arrow-right"></i>
                     </div>
                     <div class="route-to">
                         <i class="fas fa-flag-checkered" style="color: #27ae60;"></i>
-                        <span class="route-city">${toCity}</span>
+                        <span class="route-city">${trip.route?.to_city || trip.route?.to?.split(',')[0] || 'Не указано'}</span>
                     </div>
                 </div>
                 
                 <div class="trip-details">
                     <div class="detail-item">
                         <i class="fas fa-calendar"></i>
-                        <span>${date}</span>
+                        <span>${trip.departure?.date || '--.--.----'}</span>
                     </div>
                     <div class="detail-item">
                         <i class="fas fa-clock"></i>
-                        <span>${time}</span>
+                        <span>${timeOnly}</span>
                     </div>
                     <div class="detail-item">
                         <i class="fas fa-user-friends"></i>
-                        <span>${seats} мест</span>
+                        <span>${trip.seats?.available || 0} мест</span>
                     </div>
                 </div>
                 
-                ${carModel ? `
+                ${trip.car_info ? `
                     <div class="trip-car">
                         <i class="fas fa-car"></i>
-                        <span>${carModel} ${carColor ? '• ' + carColor : ''}</span>
+                        <span>${trip.car_info.model || ''} ${trip.car_info.color ? `• ${trip.car_info.color}` : ''}</span>
                     </div>
                 ` : ''}
                 
-                ${comment ? `
+                ${trip.details?.comment ? `
                     <div class="trip-comment">
                         <i class="fas fa-comment"></i>
-                        <span>${comment.length > 50 ? comment.substring(0, 50) + '...' : comment}</span>
+                        <span>${trip.details.comment}</span>
                     </div>
                 ` : ''}
                 
@@ -957,19 +1498,16 @@ function displaySearchResults(trips) {
     resultsEl.innerHTML = html;
 }
 
-// Очистить форму поиска
 function clearSearchForm() {
     document.getElementById('from-input').value = '';
     document.getElementById('to-input').value = '';
     document.getElementById('date-input').value = new Date().toISOString().split('T')[0];
     document.getElementById('passengers-input').value = '1';
     
-    // Скрываем кнопки очистки
     document.querySelectorAll('.clear-city-btn').forEach(btn => {
         if (btn) btn.style.display = 'none';
     });
     
-    // Очищаем результаты
     const resultsEl = document.getElementById('search-results');
     if (resultsEl) {
         resultsEl.innerHTML = `
@@ -980,226 +1518,6 @@ function clearSearchForm() {
             </div>
         `;
     }
-}
-
-// Показать детали поездки
-async function showTripDetails(tripId) {
-    if (!requireAuth('просматривать детали поездки')) return;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}`);
-        
-        if (response.ok) {
-            const data = await response.json();
-            
-            if (data.success) {
-                const trip = data.trip;
-                const modal = document.getElementById('modal');
-                const modalBody = document.getElementById('trip-details-modal') || document.getElementById('modal-body');
-                
-                if (modal && modalBody) {
-                    modalBody.innerHTML = `
-                        <div class="trip-detail">
-                            <h3>${trip.route.from} → ${trip.route.to}</h3>
-                            
-                            <div class="detail-section">
-                                <h4><i class="fas fa-user"></i> Водитель</h4>
-                                <div class="detail-item">
-                                    <span class="label">Имя:</span>
-                                    <span class="value">${trip.driver.name}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Рейтинг:</span>
-                                    <span class="value">⭐ ${trip.driver.rating.toFixed(1)}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Поездок:</span>
-                                    <span class="value">${trip.driver.total_trips}</span>
-                                </div>
-                            </div>
-                            
-                            <div class="detail-section">
-                                <h4><i class="fas fa-route"></i> Маршрут</h4>
-                                <div class="detail-item">
-                                    <span class="label">Откуда:</span>
-                                    <span class="value">${trip.route.from}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Куда:</span>
-                                    <span class="value">${trip.route.to}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Дата и время:</span>
-                                    <span class="value">${trip.departure.datetime}</span>
-                                </div>
-                            </div>
-                            
-                            ${trip.car_info ? `
-                                <div class="detail-section">
-                                    <h4><i class="fas fa-car"></i> Автомобиль</h4>
-                                    <div class="detail-item">
-                                        <span class="label">Модель:</span>
-                                        <span class="value">${trip.car_info.model}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="label">Цвет:</span>
-                                        <span class="value">${trip.car_info.color}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="label">Госномер:</span>
-                                        <span class="value">${trip.car_info.plate}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="label">Мест:</span>
-                                        <span class="value">${trip.car_info.seats}</span>
-                                    </div>
-                                </div>
-                            ` : ''}
-                            
-                            <div class="detail-section">
-                                <h4><i class="fas fa-money-bill-wave"></i> Цена</h4>
-                                <div class="detail-item">
-                                    <span class="label">Цена за место:</span>
-                                    <span class="value">${trip.seats.price_per_seat} ₽</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Свободных мест:</span>
-                                    <span class="value">${trip.seats.available}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Общая стоимость:</span>
-                                    <span class="value">${trip.seats.total_price} ₽</span>
-                                </div>
-                            </div>
-                            
-                            ${trip.details.comment ? `
-                                <div class="detail-section">
-                                    <h4><i class="fas fa-comment"></i> Комментарий</h4>
-                                    <p>${trip.details.comment}</p>
-                                </div>
-                            ` : ''}
-                            
-                            <div class="modal-actions">
-                                <button class="btn-primary" onclick="bookTrip(${trip.id})">
-                                    <i class="fas fa-check"></i>
-                                    Забронировать место
-                                </button>
-                                <button class="btn-secondary" onclick="closeModal()">
-                                    <i class="fas fa-times"></i>
-                                    Закрыть
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    
-                    modal.style.display = 'block';
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки деталей:', error);
-        showNotification('Ошибка загрузки данных', 'error');
-    }
-}
-
-// =============== СОЗДАНИЕ ПОЕЗДКИ ===============
-async function createTrip() {
-    if (!requireAuth('создать поездку')) return;
-    
-    const from = document.getElementById('trip-from').value.trim();
-    const to = document.getElementById('trip-to').value.trim();
-    const date = document.getElementById('trip-date').value;
-    const time = document.getElementById('trip-time').value;
-    const carModel = document.getElementById('car-model').value.trim();
-    const seats = document.getElementById('seats-count').value;
-    const price = document.getElementById('trip-price').value;
-    const comment = document.getElementById('trip-comment').value.trim();
-    
-    // Проверка полей
-    if (!from || !to || !date || !time || !carModel || !seats || !price) {
-        showNotification('Заполните все обязательные поля', 'warning');
-        return;
-    }
-    
-    if (parseFloat(price) <= 0) {
-        showNotification('Цена должна быть больше 0', 'warning');
-        return;
-    }
-    
-    if (parseInt(seats) <= 0) {
-        showNotification('Количество мест должно быть больше 0', 'warning');
-        return;
-    }
-    
-    try {
-        const tripData = {
-            departure_date: `${date}T${time}:00`,
-            departure_time: time,
-            start_address: from,
-            finish_address: to,
-            available_seats: parseInt(seats),
-            price_per_seat: parseFloat(price),
-            comment: comment || null
-        };
-        
-        console.log('Creating trip:', tripData);
-        console.log('Telegram ID:', currentUser.telegram_id);
-        
-        const response = await fetch(
-            `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
-            {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(tripData)
-            }
-        );
-        
-        console.log('Create trip response status:', response.status);
-        
-        const responseText = await response.text();
-        console.log('Create trip response body:', responseText);
-        
-        if (response.ok) {
-            const data = JSON.parse(responseText);
-            if (data.success) {
-                showNotification('🎉 Поездка успешно создана!', 'success');
-                showScreen('welcome');
-                clearTripForm();
-                loadStats();
-            } else {
-                showNotification(data.message || 'Ошибка создания поездки', 'error');
-            }
-        } else {
-            console.error('Create trip error:', responseText);
-            showNotification(`Ошибка сервера: ${response.status}`, 'error');
-        }
-    } catch (error) {
-        console.error('Ошибка создания поездки:', error);
-        showNotification('Ошибка подключения к серверу', 'error');
-    }
-}
-
-// Очистить форму создания
-function clearTripForm() {
-    document.getElementById('trip-from').value = '';
-    document.getElementById('trip-to').value = '';
-    document.getElementById('car-model').value = '';
-    document.getElementById('seats-count').value = '3';
-    document.getElementById('trip-price').value = '';
-    document.getElementById('trip-comment').value = '';
-    
-    // Устанавливаем завтрашнюю дату
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    document.getElementById('trip-date').value = tomorrow.toISOString().split('T')[0];
-    
-    // Скрываем кнопки очистки
-    document.querySelectorAll('.clear-city-btn').forEach(btn => {
-        if (btn) btn.style.display = 'none';
-    });
 }
 
 // =============== БРОНИРОВАНИЯ ===============
@@ -1245,238 +1563,22 @@ async function bookTrip(tripId) {
     }
 }
 
-// =============== ПРОФИЛЬ ===============
-async function loadProfile() {
-    if (!requireAuth('просматривать профиль')) return;
-    
-    try {
-        const response = await fetch(
-            `${API_BASE_URL}/api/auth/me?telegram_id=${currentUser.telegram_id}`
-        );
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                displayProfile(data.user);
-            }
-        } else {
-            displayBasicProfile();
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки профиля:', error);
-        displayBasicProfile();
-    }
-}
-
-// Отобразить профиль
-function displayProfile(userData) {
-    const profileEl = document.getElementById('profile-data');
-    if (!profileEl) return;
-    
-    profileEl.innerHTML = `
-        <div class="profile-card">
-            <div class="profile-header">
-                <div class="profile-avatar">
-                    ${userData.first_name.charAt(0)}${userData.last_name?.charAt(0) || ''}
-                </div>
-                <div class="profile-name">${userData.first_name} ${userData.last_name || ''}</div>
-                <div class="profile-role">${userData.role === 'driver' ? 'Водитель' : userData.role === 'both' ? 'Водитель и пассажир' : 'Пассажир'}</div>
-            </div>
-            
-            <div class="profile-stats">
-                <div class="stat-card">
-                    <span class="stat-value">${userData.stats.driver_trips || 0}</span>
-                    <span class="stat-label">Поездок как водитель</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${userData.stats.passenger_trips || 0}</span>
-                    <span class="stat-label">Поездок как пассажир</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${userData.ratings.driver?.toFixed(1) || '5.0'}</span>
-                    <span class="stat-label">Рейтинг водителя</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${userData.ratings.passenger?.toFixed(1) || '5.0'}</span>
-                    <span class="stat-label">Рейтинг пассажира</span>
-                </div>
-            </div>
-            
-            ${userData.car_info && userData.car_info.model ? `
-                <div class="car-info-section">
-                    <h4><i class="fas fa-car"></i> Автомобиль</h4>
-                    <div class="car-details">
-                        <div class="car-detail">
-                            <span class="label">Модель:</span>
-                            <span class="value">${userData.car_info.model}</span>
-                        </div>
-                        <div class="car-detail">
-                            <span class="label">Цвет:</span>
-                            <span class="value">${userData.car_info.color}</span>
-                        </div>
-                        <div class="car-detail">
-                            <span class="label">Госномер:</span>
-                            <span class="value">${userData.car_info.plate}</span>
-                        </div>
-                        <div class="car-detail">
-                            <span class="label">Мест:</span>
-                            <span class="value">${userData.car_info.seats}</span>
-                        </div>
-                    </div>
-                </div>
-            ` : `
-                <div class="no-car-section">
-                    <p><i class="fas fa-car"></i> У вас пока нет автомобиля</p>
-                    <button class="btn-primary" onclick="addCar()">
-                        <i class="fas fa-plus"></i> Добавить автомобиль
-                    </button>
-                </div>
-            `}
-            
-            <div class="profile-actions">
-                <button class="btn-secondary" onclick="editProfile()">
-                    <i class="fas fa-edit"></i> Редактировать профиль
-                </button>
-                <button class="btn-secondary" onclick="showMyTrips()">
-                    <i class="fas fa-route"></i> Мои поездки
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-function displayBasicProfile() {
-    const profileEl = document.getElementById('profile-data');
-    if (!profileEl) return;
-    
-    profileEl.innerHTML = `
-        <div class="profile-card">
-            <div class="profile-header">
-                <div class="profile-avatar">
-                    ${currentUser.first_name.charAt(0)}${currentUser.last_name?.charAt(0) || ''}
-                </div>
-                <div class="profile-name">${currentUser.first_name} ${currentUser.last_name || ''}</div>
-                <div class="profile-role">Пассажир</div>
-            </div>
-            
-            <p>Данные профиля загружаются...</p>
-            
-            <div class="profile-actions">
-                <button class="btn-primary" onclick="addCar()">
-                    <i class="fas fa-plus"></i> Добавить автомобиль
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-// Добавить автомобиль
-async function addCar() {
-    if (!requireAuth('добавить автомобиль')) return;
-    
-    const model = prompt('Введите модель автомобиля:');
-    if (!model) return;
-    
-    const color = prompt('Введите цвет автомобиля:', 'Черный');
-    const plate = prompt('Введите госномер (например, А123АА777):');
-    const seats = prompt('Количество мест (включая водителя):', '4');
-    
-    try {
-        const updateData = {
-            has_car: true,
-            car_model: model,
-            car_color: color,
-            car_plate: plate,
-            car_seats: parseInt(seats) || 4
-        };
-        
-        const response = await fetch(
-            `${API_BASE_URL}/api/users/update?telegram_id=${currentUser.telegram_id}`,
-            {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updateData)
-            }
-        );
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                showNotification('✅ Автомобиль добавлен! Теперь вы можете создавать поездки', 'success');
-                loadProfile();
-            }
-        }
-    } catch (error) {
-        console.error('Ошибка добавления авто:', error);
-        showNotification('Ошибка обновления профиля', 'error');
-    }
-}
-
-// Редактировать профиль
-function editProfile() {
-    showNotification('Функция в разработке', 'info');
-}
-
-// Показать мои поездки
-function showMyTrips() {
-    showScreen('my-trips');
-}
-
 // =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
 
-// Загрузить мои поездки
-async function loadMyTrips() {
-    if (!requireAuth('просматривать мои поездки')) return;
-    
-    try {
-        const response = await fetch(
-            `${API_BASE_URL}/api/trips/my?telegram_id=${currentUser.telegram_id}`
-        );
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                const tripsEl = document.getElementById('profile-data');
-                if (tripsEl) {
-                    tripsEl.innerHTML = `
-                        <div class="my-trips-container">
-                            <h3>Мои поездки</h3>
-                            
-                            <div class="trips-section">
-                                <h4>🚗 Как водитель (${data.trips.as_driver.length})</h4>
-                                ${data.trips.as_driver.map(trip => `
-                                    <div class="trip-item">
-                                        <div>${trip.route.from} → ${trip.route.to}</div>
-                                        <div class="trip-info">
-                                            <span>${trip.date}</span>
-                                            <span>${trip.available_seats} мест</span>
-                                            <span class="status ${trip.status}">${trip.status}</span>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                            
-                            <div class="trips-section">
-                                <h4>👤 Как пассажир (${data.trips.as_passenger.length})</h4>
-                                ${data.trips.as_passenger.map(booking => `
-                                    <div class="trip-item">
-                                        <div>${booking.route.from} → ${booking.route.to}</div>
-                                        <div class="trip-info">
-                                            <span>${booking.date}</span>
-                                            <span>${booking.seats} мест</span>
-                                            <span class="status ${booking.status}">${booking.status}</span>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки моих поездок:', error);
-        showNotification('Ошибка загрузки поездок', 'error');
+// Показать кастомное модальное окно
+function showCustomModal(content) {
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.innerHTML = content;
+        modal.style.display = 'block';
+    }
+}
+
+// Закрыть модальное окно
+function closeModal() {
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.style.display = 'none';
     }
 }
 
@@ -1509,7 +1611,6 @@ async function loadStats() {
 
 // Показать уведомление
 function showNotification(message, type = 'info') {
-    // Удаляем предыдущие уведомления
     document.querySelectorAll('.notification').forEach(n => n.remove());
     
     const notification = document.createElement('div');
@@ -1521,25 +1622,99 @@ function showNotification(message, type = 'info') {
     
     document.body.appendChild(notification);
     
-    // Анимация появления
     setTimeout(() => notification.classList.add('show'), 10);
     
-    // Автоматическое скрытие
     setTimeout(() => {
         notification.classList.remove('show');
         setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
 
-// Закрыть модальное окно
-function closeModal() {
-    const modal = document.getElementById('modal');
-    if (modal) {
-        modal.style.display = 'none';
+// Показать детали поездки (упрощенная версия)
+async function showTripDetails(tripId) {
+    if (!requireAuth('просматривать детали поездки')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}`);
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            if (data.success) {
+                const trip = data.trip;
+                const modalContent = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>${trip.route.from} → ${trip.route.to}</h3>
+                            <button class="close-btn" onclick="closeModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="trip-detail">
+                                <div class="detail-section">
+                                    <h4><i class="fas fa-user"></i> Водитель</h4>
+                                    <div class="detail-item">
+                                        <span class="label">Имя:</span>
+                                        <span class="value">${trip.driver.name}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="label">Рейтинг:</span>
+                                        <span class="value">⭐ ${trip.driver.rating.toFixed(1)}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <h4><i class="fas fa-route"></i> Маршрут</h4>
+                                    <div class="detail-item">
+                                        <span class="label">Откуда:</span>
+                                        <span class="value">${trip.route.from}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="label">Куда:</span>
+                                        <span class="value">${trip.route.to}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="label">Дата и время:</span>
+                                        <span class="value">${trip.departure.datetime}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <h4><i class="fas fa-money-bill-wave"></i> Цена</h4>
+                                    <div class="detail-item">
+                                        <span class="label">Цена за место:</span>
+                                        <span class="value">${trip.seats.price_per_seat} ₽</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="label">Свободных мест:</span>
+                                        <span class="value">${trip.seats.available}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="modal-actions">
+                                    <button class="btn-primary" onclick="bookTrip(${trip.id})">
+                                        <i class="fas fa-check"></i>
+                                        Забронировать место
+                                    </button>
+                                    <button class="btn-secondary" onclick="closeModal()">
+                                        <i class="fas fa-times"></i>
+                                        Закрыть
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                showCustomModal(modalContent);
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки деталей:', error);
+        showNotification('Ошибка загрузки данных', 'error');
     }
 }
 
-// Глобальное экспортирование функций для использования в HTML
+// =============== ГЛОБАЛЬНЫЕ ФУНКЦИИ ===============
 window.showScreen = showScreen;
 window.searchTrips = searchTrips;
 window.createTrip = createTrip;
@@ -1548,9 +1723,11 @@ window.showTripDetails = showTripDetails;
 window.clearSearchForm = clearSearchForm;
 window.clearTripForm = clearTripForm;
 window.closeModal = closeModal;
-window.addCar = addCar;
-window.editProfile = editProfile;
-window.showMyTrips = showMyTrips;
+window.showAddCarModal = showAddCarModal;
+window.setDefaultCar = setDefaultCar;
+window.deleteCar = deleteCar;
+window.saveCar = saveCar;
 window.retryAuth = retryAuth;
 window.initApp = initApp;
 window.initTestUser = initTestUser;
+window.selectCity = selectCity;

@@ -146,7 +146,10 @@
                         <h3><i class="fas fa-car"></i> Автомобиль</h3>
                         <div class="input-group">
                             <i class="fas fa-car-side"></i>
-                            <input type="text" id="car-model" placeholder="Модель авто">
+                            <input type="text" id="car-model" placeholder="Модель авто *" style="display: block;">
+                            <select id="car-model-select" style="display: none; width: 100%; border: none; background: none; font-size: 16px; color: var(--dark-color); outline: none;">
+                                <option value="">Выберите автомобиль</option>
+                            </select>
                         </div>
                         <div class="input-row">
                             <div class="input-group half">
@@ -156,6 +159,10 @@
                                     <option value="2">2 места</option>
                                     <option value="3" selected>3 места</option>
                                     <option value="4">4 места</option>
+                                    <option value="5">5 мест</option>
+                                    <option value="6">6 мест</option>
+                                    <option value="7">7 мест</option>
+                                    <option value="8">8 мест</option>
                                 </select>
                             </div>
                             <div class="input-group half">
@@ -189,7 +196,7 @@
                     <h2>👤 Мой профиль</h2>
                 </div>
                 
-                <div class="profile-card" id="profile-data">
+                <div class="profile-container" id="profile-data">
                     <div class="loader"></div>
                 </div>
             </section>
@@ -197,33 +204,33 @@
 
         <!-- Нижнее меню -->
         <nav class="bottom-nav">
-            <button class="nav-btn active" onclick="showScreen('welcome')">
+            <button class="nav-btn active" data-screen="welcome" onclick="showScreen('welcome')">
                 <i class="fas fa-home"></i>
                 <span>Главная</span>
             </button>
-            <button class="nav-btn" onclick="showScreen('find-trip')">
+            <button class="nav-btn" data-screen="find-trip" onclick="showScreen('find-trip')">
                 <i class="fas fa-search"></i>
                 <span>Поиск</span>
             </button>
-            <button class="nav-btn" onclick="showScreen('create-trip')">
+            <button class="nav-btn" data-screen="create-trip" onclick="showScreen('create-trip')">
                 <i class="fas fa-plus-circle"></i>
                 <span>Создать</span>
             </button>
-            <button class="nav-btn" onclick="showScreen('profile')">
+            <button class="nav-btn" data-screen="profile" onclick="showScreen('profile')">
                 <i class="fas fa-user"></i>
                 <span>Профиль</span>
             </button>
         </nav>
     </div>
 
-    <!-- Модальные окна -->
-    <div class="modal" id="trip-modal" style="display: none;">
+    <!-- Основное модальное окно -->
+    <div class="modal" id="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Детали поездки</h3>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" id="modal-body">
                 <p>Детали поездки загружаются...</p>
                 <div class="modal-actions">
                     <button class="btn-primary" onclick="bookTrip(0)">
@@ -239,6 +246,56 @@
         </div>
     </div>
 
+    <!-- Модальное окно для деталей поездки (будет создаваться динамически) -->
+    <div id="trip-details-modal" style="display: none;"></div>
+
+    <!-- Для отладки - временно -->
+    <div style="position: fixed; top: 10px; right: 10px; z-index: 9999; display: none;">
+        <button onclick="debugCreateTrip()" style="background: red; color: white; padding: 5px;">
+            DEBUG
+        </button>
+    </div>
+
     <script src="app.js"></script>
+    
+    <script>
+        // Функция для отладки
+        function debugCreateTrip() {
+            console.log('=== DEBUG INFO ===');
+            console.log('1. Current user:', window.currentUser);
+            console.log('2. API Base URL:', window.API_BASE_URL);
+            console.log('3. Telegram data:', window.Telegram?.WebApp?.initDataUnsafe);
+            
+            // Проверка формы
+            const formData = {
+                from: document.getElementById('trip-from')?.value,
+                to: document.getElementById('trip-to')?.value,
+                date: document.getElementById('trip-date')?.value,
+                time: document.getElementById('trip-time')?.value,
+                carModel: document.getElementById('car-model')?.value,
+                carSelect: document.getElementById('car-model-select')?.value,
+                seats: document.getElementById('seats-count')?.value,
+                price: document.getElementById('trip-price')?.value
+            };
+            console.log('4. Form data:', formData);
+            
+            // Тестовый запрос
+            testApiRequest();
+        }
+        
+        async function testApiRequest() {
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/health`);
+                console.log('5. Health check:', response.status, await response.text());
+                
+                if (window.currentUser?.telegram_id) {
+                    const meResponse = await fetch(`${window.API_BASE_URL}/api/auth/me?telegram_id=${window.currentUser.telegram_id}`);
+                    console.log('6. Auth check:', meResponse.status, await meResponse.text());
+                }
+            } catch (error) {
+                console.log('7. Connection error:', error.message);
+            }
+        }
+    </script>
 </body>
 </html>
