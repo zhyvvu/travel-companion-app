@@ -802,6 +802,11 @@ function displayBasicProfile() {
 
 // Загрузить профиль
 async function loadProfile() {
+    // ДОБАВЬТЕ ЭТИ 3 СТРОКИ:
+    console.log("🎯 ФУНКЦИЯ loadProfile ВЫЗВАНА!");
+    document.getElementById('profile-data').innerHTML = "<h1>✅ Функция работает!</h1>";
+    return;
+
     if (!requireAuth('просматривать профиль')) return;
     
     const profileEl = document.getElementById('profile-data');
