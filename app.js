@@ -1,4 +1,4 @@
-// app.js - МИНИМАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+// app.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
 const tg = window.Telegram.WebApp;
 const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 
@@ -160,15 +160,16 @@ function setupBasicEvents() {
         btn.addEventListener('click', function() {
             const screenId = this.dataset.screen;
             console.log('📱 Navigate to:', screenId);
+            
+            // Проверка авторизации для защищенных экранов
+            if (['profile', 'create-trip', 'find-trip'].includes(screenId)) {
+                if (!currentUser) {
+                    showNotification('Пожалуйста, авторизуйтесь', 'warning');
+                    return;
+                }
+            }
+            
             showScreen(screenId);
-        });
-    });
-    
-    // Тестовые кнопки
-    document.querySelectorAll('.test-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            console.log('🧪 Test button clicked:', this.textContent);
-            showNotification('Тестовая функция', 'info');
         });
     });
     
@@ -178,7 +179,7 @@ function setupBasicEvents() {
     });
 }
 
-// Показ экрана
+// Показ экрана - ИСПРАВЛЕННАЯ ВЕРСИЯ
 function showScreen(screenId) {
     console.log('🖥️ Showing screen:', screenId);
     
@@ -199,13 +200,23 @@ function showScreen(screenId) {
             loadSimpleProfile();
         }
         
-        // Кнопка назад
-        if (tg.BackButton) {
+        // Кнопка назад в Telegram - ИСПРАВЛЕНИЕ ЗДЕСЬ
+        if (tg && tg.BackButton) {
+            console.log('🔘 BackButton доступен, метод:', typeof tg.BackButton.setText);
+            
             if (screenId === 'welcome') {
                 tg.BackButton.hide();
             } else {
                 tg.BackButton.show();
-                tg.BackButton.setText('Назад');
+                
+                // ПРОВЕРЯЕМ КАКОЙ МЕТОД СУЩЕСТВУЕТ
+                if (typeof tg.BackButton.setText === 'function') {
+                    tg.BackButton.setText('Назад');
+                } else if (typeof tg.BackButton.setText === 'function') {
+                    tg.BackButton.setText('Назад');
+                } else {
+                    console.log('⚠️ Метод setText не найден, доступные методы:', Object.keys(tg.BackButton));
+                }
             }
         }
     }
