@@ -1,4 +1,4 @@
-// app.js - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ
+// app.js - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ (исправлена)
 const tg = window.Telegram.WebApp;
 const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 
@@ -6,6 +6,7 @@ let currentUser = null;
 let authInProgress = false;
 let userCars = [];
 
+// Список городов России для автодополнения
 const RUSSIAN_CITIES = [
     'Москва', 'Санкт-Петербург', 'Новосибирск', 'Екатеринбург', 'Казань',
     'Нижний Новгород', 'Челябинск', 'Самара', 'Омск', 'Ростов-на-Дону',
@@ -34,14 +35,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 3. Загружаем статистику
         await loadStats();
         
-        // 4. Настраиваем автодополнение городов
-        setupCityAutocomplete();
-        
-        // 5. Готово
+        // 4. Готово
         if (tg.ready) tg.ready();
         console.log('✅ App ready');
         
-        // 6. Показываем главный экран
+        // 5. Показываем главный экран
         showScreen('welcome');
         
     } catch (error) {
@@ -121,7 +119,7 @@ async function initTelegram() {
     updateUI();
 }
 
-// Авторизация - ИСПРАВЛЕННЫЙ ФОРМАТ
+// Авторизация
 async function tryAuth(telegramUser) {
     if (authInProgress) return;
     authInProgress = true;
@@ -129,7 +127,7 @@ async function tryAuth(telegramUser) {
     console.log('🔐 Trying auth...');
     
     try {
-        // ПРАВИЛЬНЫЙ ФОРМАТ ДЛЯ API
+        // Первый формат
         const authData = {
             id: telegramUser.id,
             first_name: telegramUser.first_name || '',
@@ -913,6 +911,71 @@ function initSearchForm() {
     }
 }
 
+// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
+
+function setupCityAutocomplete() {
+    // Простая реализация автодополнения
+    const cityInputs = ['from-input', 'to-input', 'trip-from', 'trip-to'];
+    
+    cityInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        
+        input.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            if (value.length >= 2) {
+                showCitySuggestions(inputId, value);
+            } else {
+                hideSuggestions(inputId);
+            }
+        });
+    });
+}
+
+function showCitySuggestions(inputId, query) {
+    const input = document.getElementById(inputId);
+    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`) || 
+                           createSuggestionsContainer(inputId, input);
+    
+    const filteredCities = RUSSIAN_CITIES.filter(city => 
+        city.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 5);
+    
+    if (filteredCities.length === 0) {
+        suggestionsDiv.style.display = 'none';
+        return;
+    }
+    
+    suggestionsDiv.innerHTML = filteredCities.map(city => 
+        `<div class="suggestion-item" onclick="selectCity('${inputId}', '${city}')">
+            <i class="fas fa-city"></i> ${city}
+        </div>`
+    ).join('');
+    
+    suggestionsDiv.style.display = 'block';
+}
+
+function createSuggestionsContainer(inputId, input) {
+    const container = document.createElement('div');
+    container.id = `${inputId}-suggestions`;
+    container.className = 'suggestions-container';
+    input.parentNode.appendChild(container);
+    return container;
+}
+
+function selectCity(inputId, city) {
+    const input = document.getElementById(inputId);
+    input.value = city;
+    hideSuggestions(inputId);
+}
+
+function hideSuggestions(inputId) {
+    const suggestionsDiv = document.getElementById(`${inputId}-suggestions`);
+    if (suggestionsDiv) {
+        suggestionsDiv.style.display = 'none';
+    }
+}
+
 // =============== ОБРАБОТКА СОБЫТИЙ ===============
 
 function setupEventListeners() {
@@ -959,10 +1022,10 @@ function setupEventListeners() {
         });
     }
     
-    // Автодополнение городов (базовая настройка)
+    // Инициализируем автодополнение после загрузки страницы
     setTimeout(() => {
         setupCityAutocomplete();
-        console.log('City autocomplete initialized');
+        console.log('✅ City autocomplete initialized');
     }, 1000);
 }
 
@@ -1011,3 +1074,4 @@ window.setDefaultCar = setDefaultCar;
 window.deleteCar = deleteCar;
 window.saveCar = saveCar;
 window.closeModal = closeModal;
+window.selectCity = selectCity;
