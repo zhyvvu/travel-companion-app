@@ -1,4 +1,4 @@
-// app.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// app.js - ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 const tg = window.Telegram.WebApp;
 const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 
@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tg.ready) tg.ready();
         console.log('✅ App ready');
         
+        // 4. Показываем главный экран
+        showScreen('welcome');
+        
     } catch (error) {
         console.error('❌ App error:', error);
         showNotification('Ошибка загрузки приложения', 'error');
@@ -30,26 +33,26 @@ async function initTelegram() {
     console.log('🔍 Инициализация Telegram...');
     
     // Проверяем данные Telegram
-    const initData = tg.initData;
     const unsafeData = tg.initDataUnsafe;
+    const initData = tg.initData;
     
-    console.log('📱 InitData:', initData);
     console.log('📱 InitDataUnsafe:', unsafeData);
     
     if (unsafeData?.user) {
         // Есть данные пользователя
-        console.log('✅ Telegram user found:', unsafeData.user);
+        const user = unsafeData.user;
+        console.log('✅ Telegram user found:', user);
         
         currentUser = {
-            telegram_id: unsafeData.user.id,
-            first_name: unsafeData.user.first_name,
-            last_name: unsafeData.user.last_name || '',
-            username: unsafeData.user.username,
-            language_code: unsafeData.user.language_code
+            telegram_id: user.id,
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            username: user.username || '',
+            language_code: user.language_code || 'ru'
         };
         
-        // Пробуем авторизоваться
-        await tryAuth();
+        // Пробуем авторизоваться (корректный формат)
+        await tryAuth(user);
         
     } else if (initData) {
         // Пробуем распарсить initData
@@ -63,13 +66,13 @@ async function initTelegram() {
                 
                 currentUser = {
                     telegram_id: user.id,
-                    first_name: user.first_name,
+                    first_name: user.first_name || '',
                     last_name: user.last_name || '',
-                    username: user.username,
-                    language_code: user.language_code
+                    username: user.username || '',
+                    language_code: user.language_code || 'ru'
                 };
                 
-                await tryAuth();
+                await tryAuth(user);
             }
         } catch (e) {
             console.error('Parse error:', e);
@@ -94,38 +97,104 @@ async function initTelegram() {
     updateUI();
 }
 
-// Попытка авторизации
-async function tryAuth() {
+// Попытка авторизации - ИСПРАВЛЕННЫЙ ФОРМАТ
+async function tryAuth(telegramUser) {
     console.log('🔐 Trying auth...');
     
     try {
+        // ПРАВИЛЬНЫЙ ФОРМАТ ДЛЯ API
+        const authData = {
+            id: telegramUser.id,
+            first_name: telegramUser.first_name || '',
+            last_name: telegramUser.last_name || '',
+            username: telegramUser.username || '',
+            language_code: telegramUser.language_code || 'ru',
+            is_premium: telegramUser.is_premium || false
+        };
+        
+        console.log('📤 Sending auth data:', authData);
+        
         const response = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user: currentUser })
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(authData)
         });
         
         console.log('Auth status:', response.status);
         
         if (response.ok) {
             const data = await response.json();
-            console.log('Auth data:', data);
+            console.log('✅ Auth success:', data);
             
             if (data.success) {
                 // Сохраняем данные
                 currentUser = { ...currentUser, ...data.user };
                 localStorage.setItem('travel_user', JSON.stringify(currentUser));
                 showNotification('✅ Авторизация успешна', 'success');
+                return true;
+            } else {
+                console.error('❌ Auth failed:', data);
+                showNotification('Авторизация не удалась', 'warning');
+                return false;
             }
+        } else {
+            // Пробуем понять ошибку
+            const errorText = await response.text();
+            console.error('❌ Auth error response:', errorText);
+            
+            // Попробуем альтернативный формат
+            const alternativeResponse = await tryAlternativeAuth(telegramUser);
+            return alternativeResponse;
         }
     } catch (error) {
-        console.error('Auth error:', error);
+        console.error('❌ Auth network error:', error);
         // Используем сохраненные данные
         const saved = localStorage.getItem('travel_user');
         if (saved) {
             currentUser = JSON.parse(saved);
             showNotification('⚠️ Используем сохраненные данные', 'warning');
+            return true;
         }
+        return false;
+    }
+}
+
+// Альтернативный формат авторизации
+async function tryAlternativeAuth(telegramUser) {
+    console.log('🔄 Trying alternative auth format...');
+    
+    try {
+        // Формат, который ожидает API
+        const authData = {
+            user: telegramUser
+        };
+        
+        const response = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(authData)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Alternative auth success:', data);
+            
+            if (data.success) {
+                currentUser = { ...currentUser, ...data.user };
+                localStorage.setItem('travel_user', JSON.stringify(currentUser));
+                return true;
+            }
+        }
+        return false;
+    } catch (error) {
+        console.error('❌ Alternative auth error:', error);
+        return false;
     }
 }
 
@@ -133,10 +202,12 @@ async function tryAuth() {
 function updateUI() {
     console.log('🎨 Updating UI, user:', currentUser);
     
+    if (!currentUser) return;
+    
     // Приветствие
     const welcomeTitle = document.getElementById('welcome-title');
     if (welcomeTitle) {
-        welcomeTitle.textContent = `👋 Привет, ${currentUser.first_name}!`;
+        welcomeTitle.textContent = `👋 Привет, ${currentUser.first_name || 'Друг'}!`;
     }
     
     // Инфо пользователя
@@ -144,9 +215,9 @@ function updateUI() {
     if (userInfo) {
         userInfo.innerHTML = `
             <div class="user-avatar">
-                ${currentUser.first_name.charAt(0)}${currentUser.last_name?.charAt(0) || ''}
+                ${(currentUser.first_name?.charAt(0) || '') + (currentUser.last_name?.charAt(0) || '') || 'U'}
             </div>
-            <div class="user-name">${currentUser.first_name}</div>
+            <div class="user-name">${currentUser.first_name || 'Пользователь'}</div>
         `;
     }
 }
@@ -179,7 +250,7 @@ function setupBasicEvents() {
     });
 }
 
-// Показ экрана - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// Показ экрана - ОКОНЧАТЕЛЬНО ИСПРАВЛЕННАЯ ВЕРСИЯ
 function showScreen(screenId) {
     console.log('🖥️ Showing screen:', screenId);
     
@@ -195,31 +266,36 @@ function showScreen(screenId) {
         screen.classList.add('active');
         screen.style.display = 'block';
         
-        // Обработка специфичных экранов
-        if (screenId === 'profile') {
-            loadSimpleProfile();
-        }
+        // Обновляем активную кнопку навигации
+        updateNavButtons(screenId);
         
-        // Кнопка назад в Telegram - ИСПРАВЛЕНИЕ ЗДЕСЬ
+        // Кнопка назад в Telegram - БЕЗ setText
         if (tg && tg.BackButton) {
-            console.log('🔘 BackButton доступен, метод:', typeof tg.BackButton.setText);
+            console.log('🔘 BackButton доступен');
             
             if (screenId === 'welcome') {
                 tg.BackButton.hide();
             } else {
                 tg.BackButton.show();
-                
-                // ПРОВЕРЯЕМ КАКОЙ МЕТОД СУЩЕСТВУЕТ
-                if (typeof tg.BackButton.setText === 'function') {
-                    tg.BackButton.setText('Назад');
-                } else if (typeof tg.BackButton.setText === 'function') {
-                    tg.BackButton.setText('Назад');
-                } else {
-                    console.log('⚠️ Метод setText не найден, доступные методы:', Object.keys(tg.BackButton));
-                }
+                // НЕ используем setText, чтобы избежать ошибки
             }
         }
+        
+        // Обработка специфичных экранов
+        if (screenId === 'profile') {
+            loadSimpleProfile();
+        }
     }
+}
+
+// Обновление кнопок навигации
+function updateNavButtons(activeScreen) {
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.screen === activeScreen) {
+            btn.classList.add('active');
+        }
+    });
 }
 
 // Простая загрузка профиля
@@ -243,16 +319,21 @@ async function loadSimpleProfile() {
     `;
     
     try {
-        // Запрос к API
+        // Запрос к API с обработкой ошибки 404
         const response = await fetch(
-            `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
+            `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`,
+            {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            }
         );
         
         console.log('Profile API status:', response.status);
         
         if (response.ok) {
             const data = await response.json();
-            console.log('Profile data:', data);
+            console.log('✅ Profile data:', data);
             
             if (data.success) {
                 // Простое отображение
@@ -284,47 +365,94 @@ async function loadSimpleProfile() {
                 
                 showNotification('✅ Профиль загружен', 'success');
             } else {
-                // Ошибка API
-                profileEl.innerHTML = `
-                    <div style="text-align: center; padding: 40px;">
-                        <h3>⚠️ Ошибка API</h3>
-                        <p>${data.message || 'Неизвестная ошибка'}</p>
-                        <button class="btn-secondary" onclick="loadSimpleProfile()" style="margin-top: 20px;">
-                            <i class="fas fa-redo"></i> Повторить
-                        </button>
-                    </div>
-                `;
+                showErrorMessage('Ошибка API: ' + (data.message || 'Неизвестная ошибка'));
             }
+        } else if (response.status === 404) {
+            // Пользователь не найден в базе - создаем его
+            showNewUserProfile();
         } else {
-            // HTTP ошибка
             const errorText = await response.text();
             console.error('HTTP error:', errorText);
-            
-            profileEl.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <h3>⚠️ Ошибка сервера</h3>
-                    <p>Статус: ${response.status}</p>
-                    <button class="btn-secondary" onclick="loadSimpleProfile()" style="margin-top: 20px;">
-                        <i class="fas fa-redo"></i> Повторить
-                    </button>
-                </div>
-            `;
+            showErrorMessage('Ошибка сервера: ' + response.status);
         }
     } catch (error) {
-        // Сетевая ошибка
-        console.error('Network error:', error);
-        
-        profileEl.innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-                <h3>⚠️ Ошибка сети</h3>
-                <p>${error.message}</p>
-                <p>Проверьте подключение к интернету</p>
-                <button class="btn-secondary" onclick="loadSimpleProfile()" style="margin-top: 20px;">
-                    <i class="fas fa-redo"></i> Повторить
-                </button>
-            </div>
-        `;
+        console.error('❌ Network error:', error);
+        showErrorMessage('Ошибка сети: ' + error.message);
     }
+}
+
+// Показать профиль для нового пользователя
+function showNewUserProfile() {
+    const profileEl = document.getElementById('profile-data');
+    if (!profileEl) return;
+    
+    profileEl.innerHTML = `
+        <div class="profile-card" style="max-width: 600px; margin: 0 auto;">
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    ${currentUser.first_name.charAt(0)}${currentUser.last_name?.charAt(0) || ''}
+                </div>
+                <div class="profile-name">${currentUser.first_name} ${currentUser.last_name || ''}</div>
+                <div class="profile-role">Новый пользователь</div>
+            </div>
+            
+            <div style="padding: 20px; text-align: center;">
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4>👋 Добро пожаловать!</h4>
+                    <p>Вы новый пользователь Travel Companion</p>
+                    <p>Ваш ID: ${currentUser.telegram_id}</p>
+                </div>
+                
+                <p>У вас пока нет:</p>
+                <div style="margin: 20px 0;">
+                    <div style="display: flex; align-items: center; margin: 10px 0;">
+                        <i class="fas fa-car" style="color: #666; margin-right: 10px;"></i>
+                        <span>Добавленных автомобилей</span>
+                    </div>
+                    <div style="display: flex; align-items: center; margin: 10px 0;">
+                        <i class="fas fa-road" style="color: #666; margin-right: 10px;"></i>
+                        <span>Созданных поездок</span>
+                    </div>
+                    <div style="display: flex; align-items: center; margin: 10px 0;">
+                        <i class="fas fa-star" style="color: #666; margin-right: 10px;"></i>
+                        <span>Рейтинга</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <button class="btn-primary" onclick="showAddCarModal()" style="margin: 10px;">
+                        <i class="fas fa-plus"></i> Добавить первый автомобиль
+                    </button>
+                    <button class="btn-secondary" onclick="showScreen('create-trip')" style="margin: 10px;">
+                        <i class="fas fa-plus-circle"></i> Создать первую поездку
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    showNotification('👋 Добро пожаловать в Travel Companion!', 'info');
+}
+
+// Показать сообщение об ошибке
+function showErrorMessage(message) {
+    const profileEl = document.getElementById('profile-data');
+    if (!profileEl) return;
+    
+    profileEl.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <h3>⚠️ Ошибка</h3>
+            <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p>${message}</p>
+            </div>
+            <button class="btn-secondary" onclick="loadSimpleProfile()" style="margin-top: 20px;">
+                <i class="fas fa-redo"></i> Повторить
+            </button>
+            <button class="btn-primary" onclick="showScreen('welcome')" style="margin-top: 20px; margin-left: 10px;">
+                <i class="fas fa-home"></i> На главную
+            </button>
+        </div>
+    `;
 }
 
 // Вспомогательные функции
