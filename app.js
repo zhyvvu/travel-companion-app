@@ -8,9 +8,8 @@ const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 let currentUser = null;
 let authInProgress = false;
 let currentScreen = 'welcome';
-let userCars = []; // Список автомобилей пользователя
+let userCars = [];
 
-// Список городов России для автодополнения
 const RUSSIAN_CITIES = [
     'Москва', 'Санкт-Петербург', 'Новосибирск', 'Екатеринбург', 'Казань',
     'Нижний Новгород', 'Челябинск', 'Самара', 'Омск', 'Ростов-на-Дону',
@@ -26,7 +25,6 @@ const RUSSIAN_CITIES = [
 
 // =============== ОСНОВНЫЕ ФУНКЦИИ ===============
 
-// Проверка Telegram данных
 function getTelegramUser() {
     if (tg.initDataUnsafe?.user) {
         return tg.initDataUnsafe.user;
@@ -47,7 +45,6 @@ function getTelegramUser() {
     return null;
 }
 
-// ОБЯЗАТЕЛЬНАЯ АВТОРИЗАЦИЯ
 function requireAuth(action = 'выполнить это действие') {
     if (!currentUser || !currentUser.telegram_id) {
         showNotification(`Пожалуйста, авторизуйтесь чтобы ${action}`, 'warning');
@@ -76,7 +73,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// Инициализация приложения
 async function initApp() {
     try {
         console.log('Initializing app...');
@@ -133,7 +129,6 @@ async function initApp() {
     updateWelcomeMessage();
 }
 
-// Показать предупреждение о Telegram
 function showTelegramWarning() {
     const welcomeScreen = document.getElementById('welcome-screen');
     if (welcomeScreen) {
@@ -162,7 +157,6 @@ function showTelegramWarning() {
     }
 }
 
-// Тестовый пользователь
 function initTestUser() {
     currentUser = {
         telegram_id: 123456789,
@@ -177,7 +171,6 @@ function initTestUser() {
     showNotification('🔧 Тестовый режим активирован', 'info');
 }
 
-// Аутентификация пользователя
 async function authenticateUser(telegramUser) {
     if (authInProgress) return;
     authInProgress = true;
@@ -225,7 +218,6 @@ async function authenticateUser(telegramUser) {
                 updateUserInfo();
                 updateWelcomeMessage();
                 
-                // Загружаем автомобили пользователя
                 await loadUserCars();
                 
                 showNotification('✅ Авторизация успешна', 'success');
@@ -264,7 +256,6 @@ async function authenticateUser(telegramUser) {
     }
 }
 
-// Повторная попытка авторизации
 async function retryAuth() {
     const telegramUser = getTelegramUser();
     if (!telegramUser) {
@@ -275,7 +266,6 @@ async function retryAuth() {
     await authenticateUser(telegramUser);
 }
 
-// Обновить информацию о пользователе
 function updateUserInfo() {
     if (!currentUser) {
         const userInfoEl = document.getElementById('user-info');
@@ -304,7 +294,6 @@ function updateUserInfo() {
     }
 }
 
-// Обновить приветственное сообщение
 function updateWelcomeMessage() {
     if (!currentUser) return;
     
@@ -316,7 +305,6 @@ function updateWelcomeMessage() {
 
 // =============== УПРАВЛЕНИЕ АВТОМОБИЛЯМИ ===============
 
-// Загрузить автомобили пользователя
 async function loadUserCars() {
     try {
         const response = await fetch(
@@ -338,17 +326,14 @@ async function loadUserCars() {
     }
 }
 
-// Обновить select с автомобилями
 function updateCarSelect() {
     const carSelect = document.getElementById('car-model-select');
     const carModelInput = document.getElementById('car-model');
     
     if (carSelect && carModelInput) {
-        // Очищаем select
         carSelect.innerHTML = '<option value="">Выберите автомобиль</option>';
         
         if (userCars.length > 0) {
-            // Добавляем автомобили в select
             userCars.forEach(car => {
                 const option = document.createElement('option');
                 option.value = car.id;
@@ -360,18 +345,15 @@ function updateCarSelect() {
                 carSelect.appendChild(option);
             });
             
-            // Показываем select, скрываем input
             carSelect.style.display = 'block';
             carModelInput.style.display = 'none';
         } else {
-            // Показываем input, скрываем select
             carSelect.style.display = 'none';
             carModelInput.style.display = 'block';
         }
     }
 }
 
-// Получить выбранный автомобиль
 function getSelectedCar() {
     const carSelect = document.getElementById('car-model-select');
     const carModelInput = document.getElementById('car-model');
@@ -383,7 +365,6 @@ function getSelectedCar() {
         }
     }
     
-    // Если select не виден, используем input
     if (carModelInput && carModelInput.style.display !== 'none') {
         return {
             model: carModelInput.value,
@@ -395,7 +376,6 @@ function getSelectedCar() {
     return null;
 }
 
-// Показать модальное окно добавления автомобиля
 function showAddCarModal() {
     const modalContent = `
         <div class="modal-content">
@@ -471,7 +451,6 @@ function showAddCarModal() {
     showCustomModal(modalContent);
 }
 
-// Сохранить автомобиль
 async function saveCar() {
     const model = document.getElementById('new-car-model').value.trim();
     const color = document.getElementById('new-car-color').value.trim();
@@ -514,7 +493,7 @@ async function saveCar() {
             if (data.success) {
                 showNotification('✅ Автомобиль добавлен', 'success');
                 closeModal();
-                await loadUserCars(); // Обновляем список авто
+                await loadUserCars();
             }
         } else {
             const errorText = await response.text();
@@ -526,7 +505,6 @@ async function saveCar() {
     }
 }
 
-// Установить автомобиль по умолчанию
 async function setDefaultCar(carId) {
     if (!confirm('Сделать этот автомобиль основным?')) return;
     
@@ -544,7 +522,7 @@ async function setDefaultCar(carId) {
             const data = await response.json();
             if (data.success) {
                 showNotification('✅ Автомобиль установлен как основной', 'success');
-                await loadUserCars(); // Обновляем список
+                await loadUserCars();
             }
         }
     } catch (error) {
@@ -553,7 +531,6 @@ async function setDefaultCar(carId) {
     }
 }
 
-// Удалить автомобиль
 async function deleteCar(carId) {
     if (!confirm('Удалить этот автомобиль?')) return;
     
@@ -569,7 +546,7 @@ async function deleteCar(carId) {
             const data = await response.json();
             if (data.success) {
                 showNotification('✅ Автомобиль удален', 'success');
-                await loadUserCars(); // Обновляем список
+                await loadUserCars();
             }
         }
     } catch (error) {
@@ -578,236 +555,31 @@ async function deleteCar(carId) {
     }
 }
 
-// =============== ПОЛНЫЙ ПРОФИЛЬ ===============
+// =============== ПРОФИЛЬ (ИСПРАВЛЕННАЯ ВЕРСИЯ) ===============
 
-// Загрузить полный профиль
-async function loadFullProfile() {
-    try {
-        const response = await fetch(
-            `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
-        );
-        
-        console.log('Profile response status:', response.status);
-        
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Profile data:', data);
-            
-            if (data.success) {
-                displayFullProfile(data);
-                return data;
-            } else {
-                console.error('API returned success=false:', data);
-            }
-        } else {
-            const errorText = await response.text();
-            console.error('Profile error:', response.status, errorText);
-        }
-        
-        // Если дошли сюда - что-то пошло не так
-        displayBasicProfile();
-        return null;
-        
-    } catch (error) {
-        console.error('Ошибка загрузки профиля:', error);
-        displayBasicProfile();
-        return null;
-    }
-}
-
-// Отобразить полный профиль
-function displayFullProfile(data) {
-    const profileEl = document.getElementById('profile-data');
-    if (!profileEl) return;
-    
-    const user = data.user || {};
-    const cars = data.cars || [];
-    const driverTrips = data.driver_trips || [];
-    const passengerTrips = data.passenger_trips || [];
-    
-    profileEl.innerHTML = `
-        <div class="full-profile">
-            <!-- Заголовок профиля -->
-            <div class="profile-header">
-                <div class="profile-avatar">
-                    ${user.first_name?.charAt(0) || ''}${user.last_name?.charAt(0) || ''}
-                </div>
-                <div class="profile-name">${user.first_name || ''} ${user.last_name || ''}</div>
-                <div class="profile-role">${user.role === 'driver' ? 'Водитель' : user.role === 'both' ? 'Водитель и пассажир' : 'Пассажир'}</div>
-                <div class="profile-stats">
-                    <span><i class="fas fa-car"></i> ${driverTrips.length} поездок</span>
-                    <span><i class="fas fa-user"></i> ${passengerTrips.length} бронирований</span>
-                </div>
-            </div>
-            
-            <!-- Статистика -->
-            <div class="profile-section">
-                <h3><i class="fas fa-chart-line"></i> Статистика</h3>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${user.stats?.driver_trips || 0}</div>
-                        <div class="stat-label">Всего поездок как водитель</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${user.stats?.passenger_trips || 0}</div>
-                        <div class="stat-label">Всего поездок как пассажир</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${user.ratings?.driver?.toFixed(1) || '5.0'}</div>
-                        <div class="stat-label">Рейтинг водителя</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${user.ratings?.passenger?.toFixed(1) || '5.0'}</div>
-                        <div class="stat-label">Рейтинг пассажира</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Автомобили -->
-            <div class="profile-section">
-                <div class="section-header">
-                    <h3><i class="fas fa-car"></i> Мои автомобили (${cars.length})</h3>
-                    <button class="btn-small" onclick="showAddCarModal()">
-                        <i class="fas fa-plus"></i> Добавить
-                    </button>
-                </div>
-                
-                ${cars.length > 0 ? `
-                    <div class="cars-list">
-                        ${cars.map(car => `
-                            <div class="car-card ${car.is_default ? 'default-car' : ''}">
-                                <div class="car-header">
-                                    <h4>${car.model} ${car.year ? `(${car.year})` : ''}</h4>
-                                    ${car.is_default ? '<span class="default-badge">По умолчанию</span>' : ''}
-                                </div>
-                                <div class="car-details">
-                                    ${car.color ? `<div><i class="fas fa-palette"></i> ${car.color}</div>` : ''}
-                                    ${car.license_plate ? `<div><i class="fas fa-id-card"></i> ${car.license_plate}</div>` : ''}
-                                    ${car.seats ? `<div><i class="fas fa-users"></i> ${car.seats} мест</div>` : ''}
-                                </div>
-                                <div class="car-actions">
-                                    ${!car.is_default ? `
-                                        <button class="btn-small" onclick="setDefaultCar(${car.id})">
-                                            <i class="fas fa-star"></i> Сделать основным
-                                        </button>
-                                    ` : ''}
-                                    <button class="btn-small btn-danger" onclick="deleteCar(${car.id})">
-                                        <i class="fas fa-trash"></i> Удалить
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : `
-                    <div class="empty-state">
-                        <i class="fas fa-car"></i>
-                        <p>У вас пока нет автомобилей</p>
-                        <button class="btn-primary" onclick="showAddCarModal()">
-                            <i class="fas fa-plus"></i> Добавить первый автомобиль
-                        </button>
-                    </div>
-                `}
-            </div>
-            
-            <!-- Поездки как водитель -->
-            <div class="profile-section">
-                <h3><i class="fas fa-road"></i> Мои поездки как водитель (${driverTrips.length})</h3>
-                
-                ${driverTrips.length > 0 ? `
-                    <div class="trips-list">
-                        ${driverTrips.map(trip => `
-                            <div class="trip-item">
-                                <div class="trip-route">
-                                    <strong>${trip.from} → ${trip.to}</strong>
-                                </div>
-                                <div class="trip-info">
-                                    <span><i class="fas fa-calendar"></i> ${trip.date}</span>
-                                    <span><i class="fas fa-users"></i> ${trip.seats} мест</span>
-                                    <span><i class="fas fa-money-bill-wave"></i> ${trip.price} ₽</span>
-                                    <span class="status-badge status-${trip.status}">${trip.status}</span>
-                                </div>
-                                <div class="trip-passengers">
-                                    <i class="fas fa-user-friends"></i> Пассажиров: ${trip.passengers_count}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : `
-                    <div class="empty-state small">
-                        <i class="fas fa-road"></i>
-                        <p>У вас пока нет поездок как водитель</p>
-                    </div>
-                `}
-            </div>
-            
-            <!-- Поездки как пассажир -->
-            <div class="profile-section">
-                <h3><i class="fas fa-user"></i> Мои поездки как пассажир (${passengerTrips.length})</h3>
-                
-                ${passengerTrips.length > 0 ? `
-                    <div class="trips-list">
-                        ${passengerTrips.map(trip => `
-                            <div class="trip-item">
-                                <div class="trip-route">
-                                    <strong>${trip.from} → ${trip.to}</strong>
-                                    <div class="trip-driver">
-                                        <i class="fas fa-user"></i> ${trip.driver_name}
-                                    </div>
-                                </div>
-                                <div class="trip-info">
-                                    <span><i class="fas fa-calendar"></i> ${trip.date}</span>
-                                    <span><i class="fas fa-users"></i> ${trip.seats} мест</span>
-                                    <span><i class="fas fa-money-bill-wave"></i> ${trip.price} ₽</span>
-                                    <span class="status-badge status-${trip.status}">${trip.status}</span>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : `
-                    <div class="empty-state small">
-                        <i class="fas fa-user"></i>
-                        <p>У вас пока нет поездок как пассажир</p>
-                    </div>
-                `}
-            </div>
-        </div>
-    `;
-}
-
-// Базовый профиль
-function displayBasicProfile() {
-    const profileEl = document.getElementById('profile-data');
-    if (!profileEl) return;
-    
-    profileEl.innerHTML = `
-        <div class="profile-card">
-            <div class="profile-header">
-                <div class="profile-avatar">
-                    ${currentUser.first_name.charAt(0)}${currentUser.last_name?.charAt(0) || ''}
-                </div>
-                <div class="profile-name">${currentUser.first_name} ${currentUser.last_name || ''}</div>
-                <div class="profile-role">Пассажир</div>
-            </div>
-            
-            <p>Данные профиля загружаются...</p>
-            
-            <div class="profile-actions">
-                <button class="btn-primary" onclick="showAddCarModal()">
-                    <i class="fas fa-plus"></i> Добавить автомобиль
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-// Загрузить профиль
 async function loadProfile() {
-    if (!requireAuth('просматривать профиль')) return;
+    console.log("🔍 ФУНКЦИЯ loadProfile ВЫЗВАНА!");
+    
+    if (!requireAuth('просматривать профиль')) {
+        console.log("❌ Авторизация не пройдена");
+        return;
+    }
     
     const profileEl = document.getElementById('profile-data');
-    if (!profileEl) return;
+    if (!profileEl) {
+        console.error("❌ Элемент profile-data не найден!");
+        return;
+    }
     
-    profileEl.innerHTML = '<div class="loader"></div>';
+    // Показываем простой текст сразу
+    profileEl.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <h3>🔄 Загружаем профиль...</h3>
+            <div class="loader" style="margin: 20px auto;"></div>
+            <p>Telegram ID: ${currentUser.telegram_id}</p>
+            <p>API: ${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}</p>
+        </div>
+    `;
     
     console.log('🔄 Загрузка профиля...');
     console.log('Telegram ID:', currentUser.telegram_id);
@@ -822,16 +594,15 @@ async function loadProfile() {
         
         console.log(`⏱️  Время ответа: ${endTime - startTime}ms`);
         console.log('📊 Статус ответа:', response.status);
-        console.log('📊 Заголовки:', response.headers);
         
         if (response.ok) {
             const data = await response.json();
             console.log('✅ Данные профиля:', data);
             
             if (data.success) {
-                // Используйте упрощенное отображение
+                // Простое отображение для теста
                 profileEl.innerHTML = `
-                    <div class="profile-card">
+                    <div class="profile-card" style="max-width: 600px; margin: 0 auto;">
                         <div class="profile-header">
                             <div class="profile-avatar">
                                 ${data.user.first_name.charAt(0)}${data.user.last_name?.charAt(0) || ''}
@@ -842,37 +613,70 @@ async function loadProfile() {
                         
                         <div style="padding: 20px; text-align: center;">
                             <h3>✅ Профиль загружен!</h3>
-                            <p>Имя: ${data.user.first_name}</p>
-                            <p>Рейтинг водителя: ${data.user.ratings?.driver || '5.0'}</p>
-                            <p>Автомобилей: ${data.cars?.length || 0}</p>
-                            <p>Поездок: ${data.driver_trips?.length || 0}</p>
+                            <p><strong>Имя:</strong> ${data.user.first_name}</p>
+                            <p><strong>Телеграм ID:</strong> ${data.user.telegram_id}</p>
+                            <p><strong>Рейтинг водителя:</strong> ${data.user.ratings?.driver || '5.0'}</p>
+                            <p><strong>Автомобилей:</strong> ${data.cars?.length || 0}</p>
+                            <p><strong>Поездок как водитель:</strong> ${data.driver_trips?.length || 0}</p>
+                            <p><strong>Поездок как пассажир:</strong> ${data.passenger_trips?.length || 0}</p>
                             
-                            <button class="btn-primary" onclick="showAddCarModal()" style="margin-top: 20px;">
-                                <i class="fas fa-plus"></i> Добавить автомобиль
-                            </button>
+                            <div style="margin-top: 30px;">
+                                <button class="btn-primary" onclick="showAddCarModal()">
+                                    <i class="fas fa-plus"></i> Добавить автомобиль
+                                </button>
+                                <button class="btn-secondary" onclick="showScreen('welcome')" style="margin-left: 10px;">
+                                    <i class="fas fa-home"></i> На главную
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
+                console.log("✅ Профиль отображен успешно");
             } else {
-                profileEl.innerHTML = `<div class="error">Ошибка API: ${data.message || 'Неизвестная ошибка'}</div>`;
+                console.error("❌ API вернул success=false:", data);
+                profileEl.innerHTML = `
+                    <div class="error" style="text-align: center; padding: 40px;">
+                        <h3>⚠️ Ошибка API</h3>
+                        <p>${data.message || 'Неизвестная ошибка'}</p>
+                        <button class="btn-primary" onclick="loadProfile()" style="margin-top: 20px;">
+                            <i class="fas fa-redo"></i> Повторить
+                        </button>
+                    </div>
+                `;
             }
         } else {
             const errorText = await response.text();
             console.error('❌ Ошибка HTTP:', response.status, errorText);
-            profileEl.innerHTML = `<div class="error">Ошибка сервера: ${response.status}</div>`;
+            profileEl.innerHTML = `
+                <div class="error" style="text-align: center; padding: 40px;">
+                    <h3>⚠️ Ошибка сервера: ${response.status}</h3>
+                    <p>${errorText || 'Нет деталей ошибки'}</p>
+                    <button class="btn-primary" onclick="loadProfile()" style="margin-top: 20px;">
+                        <i class="fas fa-redo"></i> Повторить
+                    </button>
+                </div>
+            `;
         }
     } catch (error) {
         console.error('❌ Ошибка сети:', error);
-        profileEl.innerHTML = `<div class="error">Ошибка сети: ${error.message}</div>`;
+        profileEl.innerHTML = `
+            <div class="error" style="text-align: center; padding: 40px;">
+                <h3>⚠️ Ошибка сети</h3>
+                <p>${error.message}</p>
+                <p>Проверьте подключение к интернету</p>
+                <button class="btn-primary" onclick="loadProfile()" style="margin-top: 20px;">
+                    <i class="fas fa-redo"></i> Повторить
+                </button>
+            </div>
+        `;
     }
 }
 
-// =============== СОЗДАНИЕ ПОЕЗДКИ (ОБНОВЛЕННАЯ) ===============
+// =============== СОЗДАНИЕ ПОЕЗДКИ ===============
 
 async function createTrip() {
     if (!requireAuth('создать поездку')) return;
     
-    // Проверяем наличие автомобилей
     if (userCars.length === 0) {
         const addCar = confirm('Для создания поездки нужно добавить автомобиль. Добавить сейчас?');
         if (addCar) {
@@ -892,14 +696,12 @@ async function createTrip() {
     const price = document.getElementById('trip-price').value;
     const comment = document.getElementById('trip-comment').value.trim();
     
-    // Получаем выбранный автомобиль
     const selectedCar = getSelectedCar();
     if (!selectedCar || !selectedCar.model) {
         showNotification('Выберите автомобиль', 'warning');
         return;
     }
     
-    // Проверка полей
     if (!from || !to || !date || !time || !seats || !price) {
         showNotification('Заполните все обязательные поля', 'warning');
         return;
@@ -965,31 +767,26 @@ async function createTrip() {
     }
 }
 
-// Очистить форму создания
 function clearTripForm() {
     document.getElementById('trip-from').value = '';
     document.getElementById('trip-to').value = '';
     document.getElementById('trip-price').value = '';
     document.getElementById('trip-comment').value = '';
     
-    // Устанавливаем завтрашнюю дату
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     document.getElementById('trip-date').value = tomorrow.toISOString().split('T')[0];
     
-    // Скрываем кнопки очистки
     document.querySelectorAll('.clear-city-btn').forEach(btn => {
         if (btn) btn.style.display = 'none';
     });
     
-    // Сбрасываем выбор автомобиля
     updateCarSelect();
 }
 
 // =============== СЛУШАТЕЛИ СОБЫТИЙ ===============
 
 function setupEventListeners() {
-    // Устанавливаем сегодняшнюю дату по умолчанию
     const today = new Date().toISOString().split('T')[0];
     const dateInputs = document.querySelectorAll('input[type="date"]');
     dateInputs.forEach(input => {
@@ -999,7 +796,6 @@ function setupEventListeners() {
         }
     });
     
-    // Устанавливаем время по умолчанию (текущее + 2 часа)
     const now = new Date();
     now.setHours(now.getHours() + 2);
     const timeInputs = document.querySelectorAll('input[type="time"]');
@@ -1009,42 +805,44 @@ function setupEventListeners() {
         }
     });
     
-    // Слушатели для навигации
+    // ВАЖНОЕ ИСПРАВЛЕНИЕ: Добавляем обработчики для навигации
     document.querySelectorAll('[data-screen]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (!requireAuth('перейти в этот раздел')) return;
-            showScreen(btn.dataset.screen);
+        btn.addEventListener('click', function() {
+            console.log("🎯 Нажата кнопка навигации:", this.dataset.screen);
+            
+            // Для профиля проверяем авторизацию
+            if (this.dataset.screen === 'profile' || 
+                this.dataset.screen === 'create-trip' || 
+                this.dataset.screen === 'find-trip') {
+                if (!requireAuth('перейти в этот раздел')) return;
+            }
+            
+            showScreen(this.dataset.screen);
         });
     });
     
-    // Закрытие модальных окон
     document.querySelectorAll('.modal-close, .close-btn').forEach(btn => {
         btn.addEventListener('click', closeModal);
     });
     
-    // Клик вне модального окна
     window.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
             closeModal();
         }
     });
     
-    // Обработчики для полей ввода городов
     setupCityInputListeners();
     
-    // Обработчик кнопки поиска
     const searchBtn = document.querySelector('.search-btn');
     if (searchBtn) {
         searchBtn.addEventListener('click', searchTrips);
     }
     
-    // Обработчик кнопки создания поездки
     const createTripBtn = document.querySelector('.submit-btn');
     if (createTripBtn) {
         createTripBtn.addEventListener('click', createTrip);
     }
     
-    // Обработчики клавиш Enter в формах
     document.querySelectorAll('input').forEach(input => {
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -1059,7 +857,6 @@ function setupEventListeners() {
         });
     });
     
-    // Настройка кнопки "Назад" Telegram
     if (tg.BackButton) {
         tg.BackButton.onClick(() => {
             if (currentScreen !== 'welcome') {
@@ -1069,9 +866,12 @@ function setupEventListeners() {
             }
         });
     }
+    
+    // Дополнительная отладка
+    console.log("🎯 Обработчики событий установлены");
 }
 
-// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ (остается как было) ===============
+// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
 function setupCityAutocomplete() {
     const cityInputs = ['from-input', 'to-input', 'trip-from', 'trip-to'];
     
@@ -1325,40 +1125,25 @@ function hideAutocomplete(inputId) {
 // =============== УПРАВЛЕНИЕ ЭКРАНАМИ ===============
 
 function showScreen(screenId) {
-    if (screenId === 'welcome') {
-        document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.remove('active');
-            screen.style.display = 'none';
-        });
-        
-        const screen = document.getElementById(screenId);
-        if (screen) {
-            screen.classList.add('active');
-            screen.style.display = 'block';
-            currentScreen = screenId;
-            updateNavButtons(screenId);
-            
-            if (tg.BackButton) tg.BackButton.hide();
-        }
-        return;
-    }
+    console.log("🔄 Переключаемся на экран:", screenId);
     
-    if (!currentUser || !currentUser.telegram_id) {
-        showNotification('Пожалуйста, авторизуйтесь', 'warning');
-        return;
-    }
-    
+    // Скрываем все экраны
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('active');
         screen.style.display = 'none';
     });
     
+    // Показываем нужный экран
     const screen = document.getElementById(screenId);
     if (screen) {
         screen.classList.add('active');
         screen.style.display = 'block';
         currentScreen = screenId;
         
+        // Обновляем навигацию
+        updateNavButtons(screenId);
+        
+        // Управление кнопкой "Назад" в Telegram
         if (tg.BackButton) {
             if (screenId === 'welcome') {
                 tg.BackButton.hide();
@@ -1368,13 +1153,23 @@ function showScreen(screenId) {
             }
         }
         
-        updateNavButtons(screenId);
-        
+        // Загружаем данные для экрана
         switch(screenId) {
             case 'profile':
+                console.log("🎯 Загружаем профиль...");
                 loadProfile();
                 break;
+            case 'create-trip':
+                console.log("🎯 Показываем форму создания поездки");
+                break;
+            case 'find-trip':
+                console.log("🎯 Показываем поиск поездок");
+                break;
         }
+        
+        console.log("✅ Экран переключен:", screenId);
+    } else {
+        console.error("❌ Экран не найден:", screenId);
     }
 }
 
@@ -1387,7 +1182,7 @@ function updateNavButtons(activeScreen) {
     });
 }
 
-// =============== ПОИСК ПОЕЗДОК (остается как было) ===============
+// =============== ПОИСК ПОЕЗДОК ===============
 async function searchTrips() {
     if (!requireAuth('искать поездки')) return;
     
@@ -1638,7 +1433,6 @@ async function bookTrip(tripId) {
 
 // =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
 
-// Показать кастомное модальное окно
 function showCustomModal(content) {
     const modal = document.getElementById('modal');
     if (modal) {
@@ -1647,7 +1441,6 @@ function showCustomModal(content) {
     }
 }
 
-// Закрыть модальное окно
 function closeModal() {
     const modal = document.getElementById('modal');
     if (modal) {
@@ -1655,7 +1448,6 @@ function closeModal() {
     }
 }
 
-// Загрузить статистику
 async function loadStats() {
     try {
         const response = await fetch(`${API_BASE_URL}/stats`);
@@ -1682,7 +1474,6 @@ async function loadStats() {
     }
 }
 
-// Показать уведомление
 function showNotification(message, type = 'info') {
     document.querySelectorAll('.notification').forEach(n => n.remove());
     
@@ -1703,7 +1494,6 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Показать детали поездки (упрощенная версия)
 async function showTripDetails(tripId) {
     if (!requireAuth('просматривать детали поездки')) return;
     
