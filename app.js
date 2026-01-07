@@ -560,47 +560,69 @@ async function deleteCar(carId) {
 async function loadProfile() {
     console.log("🔍 ФУНКЦИЯ loadProfile ВЫЗВАНА!");
     
-    if (!requireAuth('просматривать профиль')) {
-        console.log("❌ Авторизация не пройдена");
+    // Проверяем авторизацию
+    if (!currentUser || !currentUser.telegram_id) {
+        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        showScreen('welcome');
         return;
     }
     
     const profileEl = document.getElementById('profile-data');
     if (!profileEl) {
         console.error("❌ Элемент profile-data не найден!");
+        showNotification('Ошибка: элемент не найден', 'error');
         return;
     }
     
-    // Показываем простой текст сразу
+    // Шаг 1: Показываем загрузку
     profileEl.innerHTML = `
         <div style="text-align: center; padding: 40px;">
             <h3>🔄 Загружаем профиль...</h3>
             <div class="loader" style="margin: 20px auto;"></div>
-            <p>Telegram ID: ${currentUser.telegram_id}</p>
-            <p>API: ${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}</p>
+            <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: left;">
+                <h4>📊 Отладка:</h4>
+                <p>✓ Функция вызвана</p>
+                <p>✓ Пользователь: ${currentUser.first_name}</p>
+                <p>✓ Telegram ID: ${currentUser.telegram_id}</p>
+                <p>🔄 Запрашиваем API...</p>
+            </div>
         </div>
     `;
     
-    console.log('🔄 Загрузка профиля...');
-    console.log('Telegram ID:', currentUser.telegram_id);
-    console.log('API URL:', `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`);
-    
     try {
-        const startTime = Date.now();
-        const response = await fetch(
-            `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
-        );
-        const endTime = Date.now();
+        // Шаг 2: Делаем запрос с таймаутом
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд
         
-        console.log(`⏱️  Время ответа: ${endTime - startTime}ms`);
-        console.log('📊 Статус ответа:', response.status);
+        const apiUrl = `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`;
+        
+        // Обновляем статус
+        const debugEl = profileEl.querySelector('div p:nth-child(4)');
+        if (debugEl) debugEl.innerHTML = `🔄 Запрашиваем: ${apiUrl}`;
+        
+        console.log('📡 API запрос:', apiUrl);
+        
+        const startTime = Date.now();
+        const response = await fetch(apiUrl, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        
+        console.log(`⏱️ Время ответа: ${duration}ms`);
+        console.log('📊 Статус:', response.status);
         
         if (response.ok) {
             const data = await response.json();
-            console.log('✅ Данные профиля:', data);
+            console.log('✅ Данные получены:', data);
+            
+            // Обновляем статус
+            if (debugEl) debugEl.innerHTML = `✅ Данные получены за ${duration}ms`;
             
             if (data.success) {
-                // Простое отображение для теста
+                // Простое отображение профиля
                 profileEl.innerHTML = `
                     <div class="profile-card" style="max-width: 600px; margin: 0 auto;">
                         <div class="profile-header">
@@ -611,60 +633,96 @@ async function loadProfile() {
                             <div class="profile-role">${data.user.role || 'Пассажир'}</div>
                         </div>
                         
-                        <div style="padding: 20px; text-align: center;">
-                            <h3>✅ Профиль загружен!</h3>
-                            <p><strong>Имя:</strong> ${data.user.first_name}</p>
-                            <p><strong>Телеграм ID:</strong> ${data.user.telegram_id}</p>
-                            <p><strong>Рейтинг водителя:</strong> ${data.user.ratings?.driver || '5.0'}</p>
-                            <p><strong>Автомобилей:</strong> ${data.cars?.length || 0}</p>
-                            <p><strong>Поездок как водитель:</strong> ${data.driver_trips?.length || 0}</p>
-                            <p><strong>Поездок как пассажир:</strong> ${data.passenger_trips?.length || 0}</p>
+                        <div style="padding: 20px;">
+                            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                                <h4>✅ Профиль загружен!</h4>
+                                <p>Время загрузки: ${duration}ms</p>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                                    <strong>Имя:</strong><br>${data.user.first_name}
+                                </div>
+                                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                                    <strong>ID:</strong><br>${data.user.telegram_id}
+                                </div>
+                                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                                    <strong>Рейтинг:</strong><br>⭐ ${data.user.ratings?.driver || '5.0'}
+                                </div>
+                                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                                    <strong>Автомобилей:</strong><br>${data.cars?.length || 0}
+                                </div>
+                            </div>
                             
                             <div style="margin-top: 30px;">
-                                <button class="btn-primary" onclick="showAddCarModal()">
+                                <button class="btn-primary" onclick="showAddCarModal()" style="width: 100%; margin-bottom: 10px;">
                                     <i class="fas fa-plus"></i> Добавить автомобиль
                                 </button>
-                                <button class="btn-secondary" onclick="showScreen('welcome')" style="margin-left: 10px;">
+                                <button class="btn-secondary" onclick="showScreen('welcome')" style="width: 100%;">
                                     <i class="fas fa-home"></i> На главную
                                 </button>
                             </div>
                         </div>
                     </div>
                 `;
-                console.log("✅ Профиль отображен успешно");
+                
+                showNotification('✅ Профиль загружен', 'success');
+                
             } else {
-                console.error("❌ API вернул success=false:", data);
+                // API вернул ошибку
                 profileEl.innerHTML = `
-                    <div class="error" style="text-align: center; padding: 40px;">
+                    <div style="text-align: center; padding: 40px;">
                         <h3>⚠️ Ошибка API</h3>
-                        <p>${data.message || 'Неизвестная ошибка'}</p>
-                        <button class="btn-primary" onclick="loadProfile()" style="margin-top: 20px;">
+                        <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <p><strong>Сообщение:</strong> ${data.message || 'Неизвестная ошибка'}</p>
+                            <p><strong>Код:</strong> ${data.code || 'N/A'}</p>
+                        </div>
+                        <button class="btn-primary" onclick="loadProfile()">
                             <i class="fas fa-redo"></i> Повторить
                         </button>
                     </div>
                 `;
+                console.error('❌ API ошибка:', data);
             }
+            
         } else {
+            // Ошибка HTTP
             const errorText = await response.text();
-            console.error('❌ Ошибка HTTP:', response.status, errorText);
+            console.error('❌ HTTP ошибка:', response.status, errorText);
+            
             profileEl.innerHTML = `
-                <div class="error" style="text-align: center; padding: 40px;">
-                    <h3>⚠️ Ошибка сервера: ${response.status}</h3>
-                    <p>${errorText || 'Нет деталей ошибки'}</p>
-                    <button class="btn-primary" onclick="loadProfile()" style="margin-top: 20px;">
+                <div style="text-align: center; padding: 40px;">
+                    <h3>⚠️ Ошибка сервера</h3>
+                    <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>Статус:</strong> ${response.status}</p>
+                        <p><strong>Ответ:</strong> ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}</p>
+                    </div>
+                    <button class="btn-primary" onclick="loadProfile()">
                         <i class="fas fa-redo"></i> Повторить
                     </button>
                 </div>
             `;
         }
+        
     } catch (error) {
-        console.error('❌ Ошибка сети:', error);
+        // Сетевая ошибка или таймаут
+        console.error('❌ Сетевая ошибка:', error);
+        
         profileEl.innerHTML = `
-            <div class="error" style="text-align: center; padding: 40px;">
+            <div style="text-align: center; padding: 40px;">
                 <h3>⚠️ Ошибка сети</h3>
-                <p>${error.message}</p>
-                <p>Проверьте подключение к интернету</p>
-                <button class="btn-primary" onclick="loadProfile()" style="margin-top: 20px;">
+                <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <p><strong>Тип:</strong> ${error.name}</p>
+                    <p><strong>Сообщение:</strong> ${error.message}</p>
+                    ${error.name === 'AbortError' ? '<p><strong>Причина:</strong> Превышено время ожидания (10 секунд)</p>' : ''}
+                </div>
+                <p>Проверьте:</p>
+                <ul style="text-align: left; margin: 20px 0;">
+                    <li>Подключение к интернету</li>
+                    <li>Работает ли API: ${API_BASE_URL}</li>
+                    <li>Нет ли блокировки CORS</li>
+                </ul>
+                <button class="btn-primary" onclick="loadProfile()">
                     <i class="fas fa-redo"></i> Повторить
                 </button>
             </div>
@@ -1095,7 +1153,7 @@ function showCityAutocomplete(inputId, query) {
                         document.getElementById('trip-to');
                     if (nextInput) nextInput.focus();
                 }, 100);
-            }
+        }
         });
         
         item.addEventListener('mouseover', () => {
@@ -1144,11 +1202,12 @@ function showScreen(screenId) {
         updateNavButtons(screenId);
         
         // Управление кнопкой "Назад" в Telegram
-        if (tg.BackButton) {
+        if (tg && tg.BackButton) {
             if (screenId === 'welcome') {
                 tg.BackButton.hide();
             } else {
                 tg.BackButton.show();
+                // ИСПРАВЛЕНИЕ: setText -> setText (с заглавной T)
                 tg.BackButton.setText('Назад');
             }
         }
@@ -1594,3 +1653,41 @@ window.retryAuth = retryAuth;
 window.initApp = initApp;
 window.initTestUser = initTestUser;
 window.selectCity = selectCity;
+
+// Функция для тестирования API (добавьте в консоль Telegram)
+window.testAPI = async function() {
+    console.log("🧪 Тестируем API...");
+    
+    try {
+        // Тест 1: Статистика
+        console.log("1. Тест /stats...");
+        const statsRes = await fetch(`${API_BASE_URL}/stats`);
+        console.log("Stats:", statsRes.status, await statsRes.json());
+        
+        // Тест 2: Профиль пользователя
+        console.log("2. Тест профиля...");
+        if (currentUser && currentUser.telegram_id) {
+            const profileRes = await fetch(
+                `${API_BASE_URL}/api/users/profile-full?telegram_id=${currentUser.telegram_id}`
+            );
+            console.log("Profile:", profileRes.status);
+            const profileText = await profileRes.text();
+            console.log("Response text:", profileText);
+            
+            try {
+                const profileJson = JSON.parse(profileText);
+                console.log("Profile JSON:", profileJson);
+            } catch(e) {
+                console.error("Не JSON ответ:", e);
+            }
+        }
+        
+        // Тест 3: Проверка доступности
+        console.log("3. Проверка CORS...");
+        const testRes = await fetch(`${API_BASE_URL}/`, { method: 'HEAD' });
+        console.log("CORS доступен:", testRes.status);
+        
+    } catch (error) {
+        console.error("❌ Ошибка теста:", error);
+    }
+};
