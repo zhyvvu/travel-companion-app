@@ -907,19 +907,34 @@ function setDefaultStats() {
 
 function initCreateTripForm() {
     // Устанавливаем сегодняшнюю дату по умолчанию
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     const dateInput = document.getElementById('trip-date');
     if (dateInput) {
-        dateInput.value = today;
-        dateInput.min = today;
+        dateInput.value = todayStr;
+        dateInput.min = todayStr;
     }
     
-    // Устанавливаем время по умолчанию (текущее + 2 часа)
+    // Устанавливаем время по умолчанию (текущее время, округленное до ближайших 15 минут + 1 час)
     const now = new Date();
-    now.setHours(now.getHours() + 2);
+    
+    // Округляем до ближайших 15 минут
+    const minutes = now.getMinutes();
+    const roundedMinutes = Math.ceil(minutes / 15) * 15;
+    
+    // Создаем новое время
+    const defaultTime = new Date(now);
+    defaultTime.setMinutes(roundedMinutes);
+    defaultTime.setHours(defaultTime.getHours() + 1); // Добавляем 1 час вперед
+    
+    // Форматируем как HH:MM
+    const hours = defaultTime.getHours().toString().padStart(2, '0');
+    const mins = defaultTime.getMinutes().toString().padStart(2, '0');
+    const defaultTimeStr = `${hours}:${mins}`;
+    
     const timeInput = document.getElementById('trip-time');
     if (timeInput) {
-        timeInput.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        timeInput.value = defaultTimeStr;
     }
     
     // Обновляем выбор автомобиля
