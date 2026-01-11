@@ -963,7 +963,7 @@ async function createTrip() {
         }
         
         // Создаем объект DateTime
-        const departure_date = new Date(dateStr + 'T' + departure_time);
+        const departure_date = new Date(dateStr + 'T' + departure_time + 'Z');
         
         const tripData = {
             departure_date: departure_date.toISOString(),
