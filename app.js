@@ -1517,19 +1517,20 @@ async function cancelTrip(tripId) {
         const response = await fetch(
             `${API_BASE_URL}/api/trips/${tripId}/cancel?telegram_id=${currentUser.telegram_id}`,
             {
-                method: 'POST'
+                method: 'POST',
+                headers: { 'Accept': 'application/json' }
             }
         );
         
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
+        if (response.ok) {
+            const result = await response.json();
             showNotification(`✅ Поездка отменена! Отменено бронирований: ${result.cancelled_bookings || 0}`, 'success');
-            closeModal();
+            
             // Обновляем профиль
             loadFullProfile();
         } else {
-            showNotification(result.detail || 'Ошибка отмены', 'error');
+            const errorText = await response.text();
+            showNotification('Ошибка отмены поездки: ' + errorText, 'error');
         }
     } catch (error) {
         console.error('❌ Ошибка отмены поездки:', error);
