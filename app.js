@@ -1807,12 +1807,6 @@ function showCreateTripWithMap() {
     
     // Инициализируем карту с задержкой для отрисовки DOM
     setTimeout(() => {
-        // ВКЛЮЧАЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯНДЕКС.КАРТ
-        if (typeof ymaps !== 'undefined') {
-            ymaps.options.set({ debug: true });
-            console.log('[YaMaps] Детальное логирование включено');
-        }
-        
         // Проверяем доступность модуля карт
         if (typeof YandexMapsModule !== 'undefined') {
             console.log('✅ Модуль карт доступен, инициализируем...');
@@ -1820,6 +1814,13 @@ function showCreateTripWithMap() {
             // Инициализируем карту
             YandexMapsModule.initMap().then(map => {
                 console.log('✅ Карта успешно инициализирована:', map);
+                
+                // ВКЛЮЧАЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ПОСЛЕ ЗАГРУЗКИ API
+                if (typeof ymaps !== 'undefined' && ymaps.options) {
+                    ymaps.options.set({ debug: true });
+                    console.log('[YaMaps] Детальное логирование включено');
+                }
+                
                 showNotification('Карта загружена', 'success');
                 
                 // Устанавливаем начальный режим
