@@ -6,7 +6,7 @@ let currentUser = null;
 let authInProgress = false;
 let userCars = [];
 // Глобальная переменная для отслеживания инициализации автодополнения
-let autocompleteInitialized = false;
+let autocompleteInitializedFlag = false;
 
 // Список городов России для автодополнения
 const RUSSIAN_CITIES = [
@@ -279,7 +279,7 @@ function showScreen(screenId) {
     
     // Сбрасываем флаг инициализации автодополнения при смене экрана
     if (typeof autocompleteInitialized !== 'undefined') {
-        autocompleteInitialized = false;
+        aautocompleteInitializedFlag = false;
     }
     
     // Скрываем все экраны
