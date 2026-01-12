@@ -1733,6 +1733,132 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// Показать новую форму с картой
+function showCreateTripWithMap() {
+    if (!currentUser) {
+        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        return;
+    }
+    
+    showScreen('create-trip-map');
+    
+    // Инициализировать карту если ещё не инициализирована
+    setTimeout(() => {
+        if (typeof initYandexMap === 'function') {
+            initYandexMap();
+        }
+        
+        // Установить значения по умолчанию
+        initCreateTripMapForm();
+    }, 300);
+}
+
+// Инициализация формы с картой
+function initCreateTripMapForm() {
+    // Установить значения по умолчанию для даты и времени
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    const dateInput = document.getElementById('trip-date-map');
+    if (dateInput) {
+        dateInput.value = todayStr;
+        dateInput.min = todayStr;
+    }
+    
+    // Время по умолчанию
+    const timeInput = document.getElementById('trip-time-map');
+    if (timeInput && !timeInput.value) {
+        const now = new Date();
+        now.setHours(now.getHours() + 2);
+        timeInput.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    }
+    
+    // Обновить список автомобилей
+    updateCarSelectForMap();
+}
+
+// Создать поездку с данными карты
+async function createTripWithMap() {
+    console.log('🗺️ Создание поездки с данными карты...');
+    
+    if (!currentUser) {
+        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        return;
+    }
+    
+    try {
+        // Получить данные маршрута
+        const routeData = getRouteData();
+        
+        if (!routeData.start_point || !routeData.finish_point) {
+            showNotification('Выберите точки начала и конца маршрута на карте', 'warning');
+            return;
+        }
+        
+        // Собрать остальные данные формы
+        const dateStr = document.getElementById('trip-date-map').value;
+        const departure_time = document.getElementById('trip-time-map').value;
+        const available_seats = parseInt(document.getElementById('seats-count-map').value);
+        const price_per_seat = parseFloat(document.getElementById('trip-price-map').value);
+        const comment = document.getElementById('trip-comment-map').value.trim();
+        
+        // Валидация
+        if (!dateStr || !departure_time || !available_seats || !price_per_seat) {
+            showNotification('Заполните все обязательные поля', 'warning');
+            return;
+        }
+        
+        // Создать объект DateTime
+        const departure_date = new Date(dateStr + 'T' + departure_time);
+        
+        // Подготовить данные для отправки
+        const tripData = {
+            departure_date: departure_date.toISOString(),
+            departure_time: departure_time,
+            available_seats: available_seats,
+            price_per_seat: price_per_seat,
+            comment: comment || null,
+            route_data: routeData
+        };
+        
+        console.log('📤 Отправка данных поездки с картой:', tripData);
+        
+        // Отправить на сервер
+        const response = await fetch(
+            `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(tripData)
+            }
+        );
+        
+        const result = await response.json();
+        console.log('Ответ создания поездки:', result);
+        
+        if (response.ok && result.success) {
+            showNotification('✅ Поездка создана успешно!', 'success');
+            // Очистить форму и вернуться на главную
+            clearRoute();
+            setTimeout(() => showScreen('welcome'), 1500);
+        } else {
+            showNotification(result.detail || 'Ошибка создания поездки', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка создания поездки:', error);
+        showNotification('Ошибка при создании поездки', 'error');
+    }
+}
+
+// Вернуться к обычной форме создания
+function goBackToCreateForm() {
+    showScreen('create-trip');
+}
+
 // =============== ГЛОБАЛЬНЫЕ ФУНКЦИИ ===============
 
 window.showScreen = showScreen;

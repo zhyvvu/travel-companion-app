@@ -7,6 +7,8 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Яндекс.Карты -->
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU" type="text/javascript"></script>
 </head>
 <body>
     <div class="container">
@@ -34,8 +36,8 @@
                             <i class="fas fa-search"></i>
                             <span>Найти поездку</span>
                         </button>
-                        <button class="role-btn passenger" onclick="showScreen('create-trip')">
-                            <i class="fas fa-plus-circle"></i>
+                        <button class="role-btn passenger" onclick="showCreateTripWithMap()"> <!-- ИЗМЕНЕНО -->
+                            <i class="fas fa-map-marked-alt"></i> <!-- ИКОНКА ИЗМЕНЕНА -->
                             <span>Создать поездку</span>
                         </button>
                     </div>
@@ -198,6 +200,93 @@
                 
                 <div class="profile-container" id="profile-data">
                     <div class="loader"></div>
+                </div>
+            </section>
+            <!-- Новая форма создания с картой -->
+            <section class="screen" id="create-trip-map" style="display: none;">
+                <div class="screen-header">
+                    <button class="back-btn" onclick="goBackToCreateForm()">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2>🗺️ Создать поездку на карте</h2>
+                </div>
+                
+                <div class="trip-form-map">
+                    <!-- Блок карты -->
+                    <div class="map-section">
+                        <div class="map-search">
+                            <input type="text" id="map-search-input" placeholder="Найти адрес на карте...">
+                            <button id="map-search-btn"><i class="fas fa-search"></i></button>
+                        </div>
+                        <div id="yandex-map" style="width: 100%; height: 400px;"></div>
+                        
+                        <div class="map-controls">
+                            <button id="btn-set-start" class="map-btn active">
+                                <i class="fas fa-map-marker-alt"></i> Откуда
+                            </button>
+                            <button id="btn-set-finish" class="map-btn">
+                                <i class="fas fa-flag-checkered"></i> Куда
+                            </button>
+                            <button id="btn-clear-route" class="map-btn">
+                                <i class="fas fa-trash"></i> Очистить
+                            </button>
+                        </div>
+                        
+                        <div class="route-info" id="route-info" style="display: none;">
+                            <h4>📊 Информация о маршруте:</h4>
+                            <p>Расстояние: <span id="route-distance">0</span> км</p>
+                            <p>Время в пути: <span id="route-duration">0</span> мин</p>
+                            <p>Начало: <span id="start-address">Не выбрано</span></p>
+                            <p>Конец: <span id="finish-address">Не выбрано</span></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Форма деталей поездки -->
+                    <div class="trip-details-section">
+                        <h3><i class="fas fa-info-circle"></i> Детали поездки</h3>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-calendar"></i>
+                            <input type="date" id="trip-date-map">
+                        </div>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-clock"></i>
+                            <input type="time" id="trip-time-map">
+                        </div>
+                        
+                        <div class="input-row">
+                            <div class="input-group half">
+                                <i class="fas fa-users"></i>
+                                <select id="seats-count-map">
+                                    <option value="1">1 место</option>
+                                    <option value="3" selected>3 места</option>
+                                    <option value="4">4 места</option>
+                                    <option value="5">5 мест</option>
+                                </select>
+                            </div>
+                            <div class="input-group half">
+                                <i class="fas fa-money-bill-wave"></i>
+                                <input type="number" id="trip-price-map" placeholder="Цена за место">
+                            </div>
+                        </div>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-car-side"></i>
+                            <select id="car-model-map">
+                                <option value="">Выберите автомобиль</option>
+                            </select>
+                        </div>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-comment-alt"></i>
+                            <input type="text" id="trip-comment-map" placeholder="Комментарий (необязательно)">
+                        </div>
+                        
+                        <button class="submit-btn" id="submit-trip-map" onclick="createTripWithMap()">
+                            <i class="fas fa-paper-plane"></i> Опубликовать поездку
+                        </button>
+                    </div>
                 </div>
             </section>
         </main>
