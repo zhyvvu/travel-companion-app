@@ -1814,13 +1814,6 @@ function showCreateTripWithMap() {
             // Инициализируем карту
             YandexMapsModule.initMap().then(map => {
                 console.log('✅ Карта успешно инициализирована:', map);
-                
-                // ВКЛЮЧАЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ПОСЛЕ ЗАГРУЗКИ API
-                if (typeof ymaps !== 'undefined' && ymaps.options) {
-                    ymaps.options.set({ debug: true });
-                    console.log('[YaMaps] Детальное логирование включено');
-                }
-                
                 showNotification('Карта загружена', 'success');
                 
                 // Устанавливаем начальный режим

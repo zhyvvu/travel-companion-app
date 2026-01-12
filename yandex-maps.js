@@ -37,6 +37,12 @@ function showNotification(message, type = 'info') {
     }
 }
 
+// ====================== ИНИЦИАЛИЗАЦИЯ КАРТЫ ======================
+
+/**
+ * Инициализирует Яндекс.Карту в указанном контейнере
+ * @returns {Promise} Промис, который разрешится когда карта будет готова
+ */
 function initYandexMap() {
     return new Promise((resolve, reject) => {
         // Проверяем, загружена ли API Яндекс.Карт
@@ -47,9 +53,29 @@ function initYandexMap() {
             return;
         }
         
+        // ВКЛЮЧАЕМ ОТЛАДКУ ТОЛЬКО ЗДЕСЬ, ПОСЛЕ ТОГО КАК УБЕДИЛИСЬ ЧТО YMAPS ЗАГРУЖЕН
+        try {
+            ymaps.options.set({ debug: true });
+            console.log('[YaMaps] Детальное логирование включено');
+        } catch (e) {
+            console.warn('[YaMaps] Не удалось включить отладку:', e.message);
+            // Продолжаем без отладки - это не критическая ошибка
+        }
+        
         // Ждем готовности API
         ymaps.ready(() => {
             try {
+                // Проверяем существование контейнера
+                const mapContainer = document.getElementById('yandex-map');
+                if (!mapContainer) {
+                    console.error('❌ Контейнер карты не найден (id="yandex-map")');
+                    showNotification('Ошибка: контейнер карты не найден', 'error');
+                    reject(new Error('Map container not found'));
+                    return;
+                }
+                
+                console.log('✅ Контейнер карты найден:', mapContainer);
+                
                 // Создаем карту в контейнере с ID 'yandex-map'
                 map = new ymaps.Map('yandex-map', {
                     center: [55.76, 37.64], // Центр - Москва
