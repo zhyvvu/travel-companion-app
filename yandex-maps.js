@@ -24,6 +24,19 @@ let routeData = {
  * Инициализирует Яндекс.Карту в указанном контейнере
  * @returns {Promise} Промис, который разрешится когда карта будет готова
  */
+
+//функция для показа уведомлений
+function showNotification(message, type = 'info') {
+    // Используем существующую функцию из app.js или создаем простую версию
+    if (window.showNotification) {
+        window.showNotification(message, type);
+    } else {
+        // Простая fallback-реализация
+        console.log(`${type.toUpperCase()}: ${message}`);
+        alert(`${type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️'} ${message}`);
+    }
+}
+
 function initYandexMap() {
     return new Promise((resolve, reject) => {
         // Проверяем, загружена ли API Яндекс.Карт
