@@ -680,6 +680,42 @@ function updateCarSelect() {
     }
 }
 
+function updateCarSelectForMap() {
+    const carSelect = document.getElementById('car-model-map');
+    
+    if (!carSelect) return;
+    
+    // Очищаем текущие опции
+    carSelect.innerHTML = '<option value="">Выберите автомобиль</option>';
+    
+    // Если есть автомобили пользователя
+    if (userCars && userCars.length > 0) {
+        userCars.forEach(car => {
+            const option = document.createElement('option');
+            option.value = car.id;
+            option.textContent = `${car.model} ${car.color ? `(${car.color})` : ''} ${car.is_default ? '⭐' : ''}`;
+            if (car.is_default) {
+                option.selected = true;
+            }
+            carSelect.appendChild(option);
+        });
+    } else {
+        // Если нет автомобилей, добавляем опцию для добавления
+        const option = document.createElement('option');
+        option.value = "add_new";
+        option.textContent = "➕ Добавить автомобиль";
+        carSelect.appendChild(option);
+    }
+    
+    // Обработчик выбора
+    carSelect.addEventListener('change', function() {
+        if (this.value === "add_new") {
+            showAddCarModal();
+            this.value = "";
+        }
+    });
+}
+
 // ПОЛНАЯ ФУНКЦИЯ ДОБАВЛЕНИЯ АВТОМОБИЛЯ
 function showAddCarModal() {
     const modalContent = `
@@ -1755,7 +1791,7 @@ function showCreateTripWithMap() {
 
 // Инициализация формы с картой
 function initCreateTripMapForm() {
-    // Установить значения по умолчанию для даты и времени
+    // Устанавливаем сегодняшнюю дату по умолчанию
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     
@@ -1773,8 +1809,18 @@ function initCreateTripMapForm() {
         timeInput.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     }
     
-    // Обновить список автомобилей
+    // Обновляем выбор автомобиля
     updateCarSelectForMap();
+    
+    // Показываем подсказку по использованию карты
+    console.log('✅ Форма с картой инициализирована');
+    
+    // Если карта не загрузилась, показываем инструкцию
+    setTimeout(() => {
+        if (!window.YandexMapsModule || !window.YandexMapsModule.isMapInitialized()) {
+            showNotification('Карта загружается... Если не появится, обновите страницу', 'info');
+        }
+    }, 2000);
 }
 
 // Создать поездку с данными карты

@@ -401,6 +401,33 @@ function setCurrentMode(mode) {
  * @param {string} query - Поисковый запрос
  */
 function performSearch(query) {
+    if (!query || !query.trim()) {
+        showNotification('Введите адрес для поиска', 'warning');
+        return;
+    }
+    
+    if (!searchControl) {
+        showNotification('Поиск временно недоступен. Выберите точку на карте вручную', 'error');
+        console.error('Поиск не инициализирован');
+        return;
+    }
+    
+    console.log('🔍 Выполняем поиск:', query);
+    
+    // Показываем загрузку
+    showNotification(`Ищем "${query}"...`, 'info');
+    
+    try {
+        searchControl.search(query).then(() => {
+            console.log('✅ Поиск выполнен');
+        }).catch(error => {
+            console.error('❌ Ошибка поиска:', error);
+            showNotification('Адрес не найден. Попробуйте другой запрос', 'warning');
+        });
+    } catch (error) {
+        console.error('❌ Критическая ошибка поиска:', error);
+        showNotification('Ошибка поиска на карте', 'error');
+    }
     if (!query || !searchControl) return;
     
     searchControl.search(query).then(() => {
