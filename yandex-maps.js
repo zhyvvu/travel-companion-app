@@ -45,7 +45,7 @@ function showNotification(message, type = 'info') {
  */
 function initYandexMap() {
     return new Promise((resolve, reject) => {
-        // Проверяем, загружена ли API Яндекс.Карт
+        // 1. Проверяем, загружена ли API Яндекс.Карт
         if (typeof ymaps === 'undefined') {
             console.error('❌ Яндекс.Карты API не загружен');
             showNotification('Карты временно недоступны', 'error');
@@ -53,19 +53,20 @@ function initYandexMap() {
             return;
         }
         
-        // ВКЛЮЧАЕМ ОТЛАДКУ ТОЛЬКО ЗДЕСЬ, ПОСЛЕ ТОГО КАК УБЕДИЛИСЬ ЧТО YMAPS ЗАГРУЖЕН
-        try {
-            ymaps.options.set({ debug: true });
-            console.log('[YaMaps] Детальное логирование включено');
-        } catch (e) {
-            console.warn('[YaMaps] Не удалось включить отладку:', e.message);
-            // Продолжаем без отладки - это не критическая ошибка
-        }
-        
-        // Ждем готовности API
+        // 2. Ждем готовности API - ВАЖНО: ymaps.options доступен только внутри ymaps.ready!
         ymaps.ready(() => {
             try {
-                // Проверяем существование контейнера
+                // 3. Пробуем включить отладку (только после ymaps.ready!)
+                if (ymaps.options && typeof ymaps.options.set === 'function') {
+                    ymaps.options.set({ debug: true });
+                    console.log('[YaMaps] Детальное логирование включено');
+                }
+            } catch (e) {
+                console.warn('[YaMaps] Не удалось включить отладку:', e.message);
+            }
+            
+            try {
+                // 4. Проверяем существование контейнера
                 const mapContainer = document.getElementById('yandex-map');
                 if (!mapContainer) {
                     console.error('❌ Контейнер карты не найден (id="yandex-map")');
@@ -76,7 +77,7 @@ function initYandexMap() {
                 
                 console.log('✅ Контейнер карты найден:', mapContainer);
                 
-                // Создаем карту в контейнере с ID 'yandex-map'
+                // 5. Создаем карту
                 map = new ymaps.Map('yandex-map', {
                     center: [55.76, 37.64], // Центр - Москва
                     zoom: 10,
@@ -85,16 +86,10 @@ function initYandexMap() {
                 
                 console.log('✅ Яндекс.Карта инициализирована');
                 
-                // Добавляем поиск по карте
+                // 6. Инициализируем остальные компоненты
                 initSearchControl();
-                
-                // Настраиваем обработчики событий
                 initMapEvents();
-                
-                // Инициализируем элементы управления
                 initMapControls();
-                
-                // Устанавливаем начальные значения
                 resetRouteData();
                 
                 resolve(map);
