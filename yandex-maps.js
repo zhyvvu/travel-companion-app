@@ -86,34 +86,7 @@ function initYandexMap() {
  * Инициализирует контроль поиска на карте
  */
 function initSearchControl() {
-    searchControl = new ymaps.control.SearchControl({
-        options: {
-            provider: 'yandex#search',
-            noPlacemark: true, // Не ставить метку автоматически
-            resultsPerPage: 5,
-            size: 'large'
-        }
-    });
-    
-    map.controls.add(searchControl);
-    
-    // Обработчик выбора результата поиска
-    searchControl.events.add('resultselect', function(e) {
-        const index = e.get('index');
-        const results = searchControl.getResultsArray();
-        
-        if (results.length > index) {
-            const selectedResult = results[index];
-            const coords = selectedResult.geometry.getCoordinates();
-            
-            // В зависимости от текущего режима устанавливаем точку
-            if (currentMode === 'start') {
-                setStartPoint(coords, selectedResult.properties.get('name'));
-            } else {
-                setFinishPoint(coords, selectedResult.properties.get('name'));
-            }
-        }
-    });
+    console.log('ℹ️ Поиск suggest недоступен в бесплатной версии API Яндекс.Карт');
 }
 
 /**
@@ -419,35 +392,34 @@ function performSearch(query) {
         return;
     }
     
-    if (!searchControl) {
-        showNotification('Поиск временно недоступен. Выберите точку на карте вручную', 'error');
-        console.error('Поиск не инициализирован');
-        return;
-    }
-    
-    console.log('🔍 Выполняем поиск:', query);
-    
-    // Показываем загрузку
+    // Вместо suggest используем простое геокодирование
+    console.log('🔍 Геокодируем адрес:', query);
     showNotification(`Ищем "${query}"...`, 'info');
     
-    try {
-        searchControl.search(query).then(() => {
-            console.log('✅ Поиск выполнен');
-        }).catch(error => {
-            console.error('❌ Ошибка поиска:', error);
-            showNotification('Адрес не найден. Попробуйте другой запрос', 'warning');
-        });
-    } catch (error) {
-        console.error('❌ Критическая ошибка поиска:', error);
-        showNotification('Ошибка поиска на карте', 'error');
-    }
-    if (!query || !searchControl) return;
-    
-    searchControl.search(query).then(() => {
-        console.log('🔍 Поиск выполнен:', query);
+    ymaps.geocode(query).then(function(res) {
+        const firstGeoObject = res.geoObjects.get(0);
+        if (firstGeoObject) {
+            const coords = firstGeoObject.geometry.getCoordinates();
+            const address = firstGeoObject.getAddressLine();
+            
+            // В зависимости от текущего режима устанавливаем точку
+            if (currentMode === 'start') {
+                setStartPoint(coords, address);
+                showNotification(`Установлена точка старта: ${address}`, 'success');
+            } else {
+                setFinishPoint(coords, address);
+                showNotification(`Установлена точка финиша: ${address}`, 'success');
+            }
+            
+            // Центрируем карту на найденной точке
+            map.setCenter(coords, 14);
+            
+        } else {
+            showNotification('Адрес не найден', 'warning');
+        }
     }).catch(error => {
-        console.error('Ошибка поиска:', error);
-        showNotification('Адрес не найден', 'warning');
+        console.error('❌ Ошибка геокодирования:', error);
+        showNotification('Ошибка поиска адреса', 'error');
     });
 }
 

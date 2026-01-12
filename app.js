@@ -1241,18 +1241,36 @@ function setupCityAutocomplete() {
 
 function showCitySuggestions(inputId, query) {
     const input = document.getElementById(inputId);
+    if (!input) return;
+    
     const suggestionsDiv = document.getElementById(`${inputId}-suggestions`) || 
                            createSuggestionsContainer(inputId, input);
     
-    const filteredCities = RUSSIAN_CITIES.filter(city => 
-        city.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 5);
+    // Очищаем предыдущие предложения
+    suggestionsDiv.innerHTML = '';
     
-    if (filteredCities.length === 0) {
+    // Если запрос слишком короткий
+    if (query.length < 2) {
         suggestionsDiv.style.display = 'none';
         return;
     }
     
+    // Фильтруем города по запросу
+    const filteredCities = RUSSIAN_CITIES.filter(city => 
+        city.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 8); // Увеличили до 8 предложений
+    
+    if (filteredCities.length === 0) {
+        suggestionsDiv.innerHTML = `
+            <div class="suggestion-item" style="color: #999; font-style: italic;">
+                <i class="fas fa-info-circle"></i> Город не найден в списке
+            </div>
+        `;
+        suggestionsDiv.style.display = 'block';
+        return;
+    }
+    
+    // Создаем элементы предложений
     suggestionsDiv.innerHTML = filteredCities.map(city => 
         `<div class="suggestion-item" onclick="selectCity('${inputId}', '${city}')">
             <i class="fas fa-city"></i> ${city}
@@ -1260,6 +1278,16 @@ function showCitySuggestions(inputId, query) {
     ).join('');
     
     suggestionsDiv.style.display = 'block';
+    
+    // Закрываем подсказки при клике вне
+    setTimeout(() => {
+        document.addEventListener('click', function closeSuggestions(e) {
+            if (!suggestionsDiv.contains(e.target) && e.target !== input) {
+                suggestionsDiv.style.display = 'none';
+                document.removeEventListener('click', closeSuggestions);
+            }
+        });
+    }, 10);
 }
 
 function createSuggestionsContainer(inputId, input) {
@@ -1725,11 +1753,9 @@ function setupEventListeners() {
         });
     }
     
-    // Инициализируем автодополнение после загрузки страницы
-    setTimeout(() => {
-        setupCityAutocomplete();
-        console.log('✅ City autocomplete initialized');
-    }, 1000);
+    // ВКЛЮЧАЕМ АВТОДОПОЛНЕНИЕ ГОРОДОВ СРАЗУ ПРИ ЗАГРУЗКЕ
+    setupCityAutocomplete();
+    console.log('✅ City autocomplete initialized');
 }
 
 // =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
