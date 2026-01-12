@@ -21,6 +21,7 @@ const RUSSIAN_CITIES = [
     'Курск', 'Сочи', 'Ставрополь', 'Магнитогорск', 'Брянск',
     'Севастополь', 'Нижний Тагил', 'Дзержинск', 'Орск', 'Сургут'
 ];
+window.RUSSIAN_CITIES = RUSSIAN_CITIES; // Теперь доступна глобально
 
 // =============== ИНИЦИАЛИЗАЦИЯ ===============
 
@@ -1270,68 +1271,61 @@ async function bookTrip(tripId) {
 let autocompleteInitialized = false;
 
 function setupCityAutocomplete() {
-    console.log('🔧 Настройка автодополнения... Текущий экран:', window.currentScreen);
+    console.log('🔧 setupCityAutocomplete вызвана для экрана:', window.currentScreen);
     
-    if (autocompleteInitialized) {
-        console.log('⚠️ Автодополнение уже инициализировано');
+    // Простейшая проверка
+    if (!window.RUSSIAN_CITIES) {
+        console.error('❌ window.RUSSIAN_CITIES не определен!');
         return;
     }
     
-    // Определяем какие поля настраивать
-    let fieldIds = [];
+    // Настройка только для текущего экрана
+    let fieldId = null;
     
     if (window.currentScreen === 'find-trip') {
-        fieldIds = ['from-input', 'to-input'];
+        fieldId = 'from-input';
     } else if (window.currentScreen === 'create-trip') {
-        fieldIds = ['trip-from', 'trip-to'];
+        fieldId = 'trip-from';
     }
     
-    console.log('Настраиваем поля:', fieldIds);
+    if (!fieldId) {
+        console.log('ℹ️ Не нужный экран для автодополнения');
+        return;
+    }
     
-    let setupCount = 0;
+    const input = document.getElementById(fieldId);
+    if (!input) {
+        console.error(`❌ Поле ${fieldId} не найдено!`);
+        return;
+    }
     
-    fieldIds.forEach(fieldId => {
-        const input = document.getElementById(fieldId);
+    console.log(`✅ Настраиваем поле: ${fieldId}`);
+    
+    // Простейший обработчик
+    input.addEventListener('input', function(e) {
+        const value = e.target.value.trim();
+        console.log(`Ввод в ${fieldId}: "${value}"`);
         
-        if (!input) {
-            console.log(`❌ Поле ${fieldId} не найдено`);
-            return;
+        if (value.length >= 2) {
+            const results = window.RUSSIAN_CITIES.filter(city => 
+                city.toLowerCase().includes(value.toLowerCase())
+            ).slice(0, 5);
+            
+            console.log(`Найдено ${results.length} городов:`, results);
+            
+            // Просто показываем в консоли
+            if (results.length > 0) {
+                console.log('✅ Автодополнение работает! Города:', results);
+            }
         }
-        
-        console.log(`✅ Найдено поле: ${fieldId}`);
-        
-        // Удаляем все старые обработчики
-        input.removeEventListener('input', handleCityInput);
-        input.removeEventListener('focus', handleCityFocus);
-        input.removeEventListener('click', handleCityFocus);
-        
-        // Добавляем новые
-        input.addEventListener('input', handleCityInput);
-        input.addEventListener('focus', handleCityFocus);
-        input.addEventListener('click', handleCityFocus);
-        
-        // Отключаем автодополнение браузера
-        input.setAttribute('autocomplete', 'off');
-        
-        setupCount++;
     });
     
-    if (setupCount > 0) {
-        autocompleteInitialized = true;
-        console.log(`✅ Автодополнение настроено для ${setupCount} полей`);
-        
-        // Автоматический тест: заполняем первое поле
-        const firstField = document.getElementById(fieldIds[0]);
-        if (firstField) {
-            setTimeout(() => {
-                firstField.value = 'Мо';
-                firstField.dispatchEvent(new Event('input', { bubbles: true }));
-                console.log(`🔄 Автотест: введено "Мо" в поле ${fieldIds[0]}`);
-            }, 300);
-        }
-    } else {
-        console.log('❌ Не настроено ни одного поля');
-    }
+    // Автозаполнение для теста
+    setTimeout(() => {
+        input.value = 'Мо';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        console.log(`🔄 Автотест: введено "Мо" в поле ${fieldId}`);
+    }, 300);
 }
 
 function handleCityInput(e) {
@@ -1959,36 +1953,9 @@ function showCreateTripWithMap() {
         return;
     }
     
-    console.log('🗺️ Показ экрана с картой...');
+    console.log('🗺️ Переход на экран с картой...');
+    // ПРОСТО переходим на экран - карта инициализируется в showScreen()
     showScreen('create-trip-map');
-    
-    // Инициализируем карту с задержкой для отрисовки DOM
-    setTimeout(() => {
-        // Проверяем доступность модуля карт
-        if (typeof YandexMapsModule !== 'undefined') {
-            console.log('✅ Модуль карт доступен, инициализируем...');
-            
-            // Инициализируем карту
-            YandexMapsModule.initMap().then(map => {
-                console.log('✅ Карта успешно инициализирована:', map);
-                showNotification('Карта загружена', 'success');
-                
-                // Устанавливаем начальный режим
-                YandexMapsModule.setCurrentMode('start');
-                
-                // Инициализируем форму
-                initCreateTripMapForm();
-                
-            }).catch(error => {
-                console.error('❌ Ошибка инициализации карты:', error);
-                showNotification('Не удалось загрузить карту. Попробуйте обновить страницу.', 'error');
-            });
-        } else {
-            console.error('❌ Модуль YandexMapsModule не найден!');
-            console.error('Проверьте подключение файла yandex-maps.js в HTML');
-            showNotification('Ошибка загрузки модуля карт', 'error');
-        }
-    }, 300);
 }
 
 // Инициализация формы с картой
@@ -2128,6 +2095,8 @@ window.searchTrips = searchTrips;
 window.bookTrip = bookTrip;
 window.showTripDetails = showTripDetails;
 
+// =============== ТЕСТОВЫЕ ФУНКЦИИ ===============
+
 window.testCityAutocomplete = function() {
     console.log('=== ТЕСТ АВТОДОПОЛНЕНИЯ ГОРОДОВ ===');
     
@@ -2174,3 +2143,50 @@ window.testCityAutocomplete = function() {
     
     console.log('=== ТЕСТ ЗАВЕРШЕН ===');
 };
+
+window.debugApp = function() {
+    console.log('=== ДЕБАГ ПРИЛОЖЕНИЯ ===');
+    console.log('1. window.RUSSIAN_CITIES:', window.RUSSIAN_CITIES ? `${window.RUSSIAN_CITIES.length} городов` : 'НЕТ');
+    console.log('2. window.currentScreen:', window.currentScreen);
+    console.log('3. window.autocompleteInitialized:', window.autocompleteInitialized);
+    console.log('4. Поля на экране:');
+    
+    const fields = ['from-input', 'to-input', 'trip-from', 'trip-to'];
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        console.log(`   ${id}:`, el ? `✓ "${el.value}"` : '✗ НЕТ');
+    });
+    
+    // Тест поиска
+    if (window.RUSSIAN_CITIES) {
+        const testQuery = 'Мо';
+        const results = window.RUSSIAN_CITIES.filter(city => 
+            city.toLowerCase().includes(testQuery.toLowerCase())
+        ).slice(0, 3);
+        console.log(`5. Тест поиска "${testQuery}":`, results);
+    }
+};
+
+window.testAutocompleteNow = function() {
+    console.log('=== ТЕСТ АВТОДОПОЛНЕНИЯ СЕЙЧАС ===');
+    
+    // Простейший тест
+    const input = document.getElementById('from-input');
+    if (input && window.RUSSIAN_CITIES) {
+        input.value = 'Мо';
+        console.log('✅ Введено "Мо" в поле from-input');
+        
+        const results = window.RUSSIAN_CITIES.filter(city => 
+            city.toLowerCase().includes('мо')
+        ).slice(0, 3);
+        
+        console.log('🔍 Результаты поиска "Мо":', results);
+        
+        if (results.length > 0) {
+            alert(`Автодополнение работает!\nНайдено: ${results.join(', ')}`);
+        }
+    } else {
+        console.error('❌ Нет поля или списка городов');
+    }
+};
+
