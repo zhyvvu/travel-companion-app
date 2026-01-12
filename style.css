@@ -1381,3 +1381,69 @@ main {
 .input-group input {
     width: 100%;
 }
+
+/* Улучшенные стили для автодополнения */
+.input-group {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.suggestions-container {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 1000;
+    max-height: 250px;
+    overflow-y: auto;
+    margin-top: 5px;
+    display: none;
+}
+
+.suggestion-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 16px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #f0f7ff;
+    color: #4a6cf7;
+}
+
+.suggestion-item i {
+    margin-right: 10px;
+    color: #4a6cf7;
+    width: 20px;
+    text-align: center;
+}
+
+.suggestion-item.no-results {
+    color: #999;
+    font-style: italic;
+    cursor: default;
+}
+
+.suggestion-item.no-results:hover {
+    background-color: transparent;
+    color: #999;
+}
+
+/* Подсветка совпадающей части текста */
+.suggestion-item .highlight {
+    font-weight: bold;
+    color: #4a6cf7;
+}

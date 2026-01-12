@@ -306,9 +306,30 @@ function showScreen(screenId) {
                 break;
             case 'create-trip':
                 initCreateTripForm();
+                // ВАЖНО: автодополнение после показа экрана
+                setTimeout(() => {
+                    console.log('🔧 Инициализируем автодополнение для create-trip');
+                    setupCityAutocomplete();
+                }, 50);
                 break;
             case 'find-trip':
                 initSearchForm();
+                // ВАЖНО: автодополнение после показа экрана
+                setTimeout(() => {
+                    console.log('🔧 Инициализируем автодополнение для find-trip');
+                    setupCityAutocomplete();
+                }, 50);
+                break;
+            case 'create-trip-map':
+                // Для экрана с картой - особая инициализация
+                setTimeout(() => {
+                    if (typeof YandexMapsModule !== 'undefined') {
+                        YandexMapsModule.initMap().then(() => {
+                            YandexMapsModule.setCurrentMode('start');
+                            initCreateTripMapForm();
+                        });
+                    }
+                }, 100);
                 break;
         }
     }
@@ -1221,24 +1242,64 @@ async function bookTrip(tripId) {
 // =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
 
 function setupCityAutocomplete() {
-    // Простая реализация автодополнения
+    console.log('🏙️ Настройка автодополнения городов...');
+    console.log('Текущий экран:', window.currentScreen);
+    
+    // Список полей для автодополнения
     const cityInputs = ['from-input', 'to-input', 'trip-from', 'trip-to'];
+    
+    let initializedCount = 0;
     
     cityInputs.forEach(inputId => {
         const input = document.getElementById(inputId);
-        if (!input) return;
         
-        input.addEventListener('input', function(e) {
-            const value = e.target.value.trim();
-            if (value.length >= 2) {
-                showCitySuggestions(inputId, value);
-            } else {
-                hideSuggestions(inputId);
-            }
-        });
+        if (input) {
+            console.log(`✅ Найдено поле: ${inputId}`);
+            
+            // Удаляем старые обработчики с тем же именем
+            const newInputHandler = function(e) {
+                handleCityInput(e, inputId);
+            };
+            
+            // Сохраняем ссылку на обработчик для возможности удаления
+            input._autocompleteHandler = newInputHandler;
+            
+            // Удаляем старый обработчик, если есть
+            input.removeEventListener('input', input._autocompleteHandler);
+            
+            // Добавляем новый
+            input.addEventListener('input', newInputHandler);
+            
+            // Также обрабатываем фокус
+            input.addEventListener('focus', function() {
+                const value = this.value.trim();
+                if (value.length >= 2) {
+                    showCitySuggestions(inputId, value);
+                }
+            });
+            
+            initializedCount++;
+        } else {
+            console.log(`⚠️ Поле "${inputId}" не найдено на странице`);
+        }
     });
+    
+    console.log(`✅ Автодополнение настроено для ${initializedCount} из ${cityInputs.length} полей`);
+    return initializedCount;
 }
 
+// Обработчик ввода
+function handleCityInput(e, inputId) {
+    const value = e.target.value.trim();
+    
+    if (value.length >= 2) {
+        showCitySuggestions(inputId, value);
+    } else {
+        hideSuggestions(inputId);
+    }
+}
+
+// Улучшенная функция показа подсказок
 function showCitySuggestions(inputId, query) {
     const input = document.getElementById(inputId);
     if (!input) return;
@@ -1255,14 +1316,16 @@ function showCitySuggestions(inputId, query) {
         return;
     }
     
-    // Фильтруем города по запросу
+    // Фильтруем города по запросу (ищем в начале слова)
+    const queryLower = query.toLowerCase();
     const filteredCities = RUSSIAN_CITIES.filter(city => 
-        city.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 8); // Увеличили до 8 предложений
+        city.toLowerCase().startsWith(queryLower) || 
+        city.toLowerCase().includes(queryLower)
+    ).slice(0, 8);
     
     if (filteredCities.length === 0) {
         suggestionsDiv.innerHTML = `
-            <div class="suggestion-item" style="color: #999; font-style: italic;">
+            <div class="suggestion-item no-results">
                 <i class="fas fa-info-circle"></i> Город не найден в списке
             </div>
         `;
@@ -1278,30 +1341,28 @@ function showCitySuggestions(inputId, query) {
     ).join('');
     
     suggestionsDiv.style.display = 'block';
-    
-    // Закрываем подсказки при клике вне
-    setTimeout(() => {
-        document.addEventListener('click', function closeSuggestions(e) {
-            if (!suggestionsDiv.contains(e.target) && e.target !== input) {
-                suggestionsDiv.style.display = 'none';
-                document.removeEventListener('click', closeSuggestions);
-            }
-        });
-    }, 10);
 }
 
 function createSuggestionsContainer(inputId, input) {
     const container = document.createElement('div');
     container.id = `${inputId}-suggestions`;
     container.className = 'suggestions-container';
+    
+    // Позиционируем контейнер относительно поля ввода
+    input.parentNode.style.position = 'relative';
     input.parentNode.appendChild(container);
+    
     return container;
 }
 
 function selectCity(inputId, city) {
     const input = document.getElementById(inputId);
-    input.value = city;
-    hideSuggestions(inputId);
+    if (input) {
+        input.value = city;
+        // Триггерим событие input для возможной валидации
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    hideAllSuggestions();
 }
 
 function hideSuggestions(inputId) {
@@ -1309,6 +1370,12 @@ function hideSuggestions(inputId) {
     if (suggestionsDiv) {
         suggestionsDiv.style.display = 'none';
     }
+}
+
+function hideAllSuggestions() {
+    document.querySelectorAll('.suggestions-container').forEach(container => {
+        container.style.display = 'none';
+    });
 }
 
 // =============== УПРАВЛЕНИЕ БРОНИРОВАНИЯМИ ===============
@@ -1753,9 +1820,7 @@ function setupEventListeners() {
         });
     }
     
-    // ВКЛЮЧАЕМ АВТОДОПОЛНЕНИЕ ГОРОДОВ СРАЗУ ПРИ ЗАГРУЗКЕ
-    setupCityAutocomplete();
-    console.log('✅ City autocomplete initialized');
+
 }
 
 // =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
