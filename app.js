@@ -1268,81 +1268,63 @@ async function bookTrip(tripId) {
 // =============== ПРОСТОЕ И РАБОЧЕЕ АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
 
 function setupCityAutocomplete() {
-    console.log('🔧 setupCityAutocomplete вызвана');
-    console.log('Текущий экран:', window.currentScreen);
-    console.log('RUSSIAN_CITIES доступна?', !!window.RUSSIAN_CITIES);
+    console.log('=== НАЧАЛО setupCityAutocomplete ===');
     
+    // 1. Проверка доступности данных
     if (!window.RUSSIAN_CITIES) {
-        console.error('❌ ОШИБКА: window.RUSSIAN_CITIES не определена!');
-        alert('Ошибка: список городов не загружен');
+        console.error('❌ RUSSIAN_CITIES не доступна глобально!');
+        console.log('Добавьте в начало app.js: window.RUSSIAN_CITIES = RUSSIAN_CITIES;');
         return;
     }
     
-    // ТЕСТ: сразу покажем, что список городов доступен
-    console.log('Список городов:', window.RUSSIAN_CITIES.length, 'городов');
-    console.log('Первые 3 города:', window.RUSSIAN_CITIES.slice(0, 3));
+    console.log('✅ Данные доступны:', window.RUSSIAN_CITIES.length, 'городов');
     
-    // Простейший тест с alert
-    const testResults = window.RUSSIAN_CITIES.filter(city => 
-        city.toLowerCase().includes('мо')
-    ).slice(0, 3);
+    // 2. Определяем какое поле настраивать
+    const fieldMap = {
+        'find-trip': 'from-input',
+        'create-trip': 'trip-from'
+    };
     
-    console.log('Тест поиска "мо":', testResults);
-    
-    if (testResults.length > 0) {
-        console.log('✅ Список городов работает!');
-    }
-    
-    // Найдем поле и настроим его
-    let fieldId = null;
-    
-    if (window.currentScreen === 'find-trip') {
-        fieldId = 'from-input';
-    } else if (window.currentScreen === 'create-trip') {
-        fieldId = 'trip-from';
-    }
+    const fieldId = fieldMap[window.currentScreen];
     
     if (!fieldId) {
-        console.log('ℹ️ Не тот экран для автодополнения');
+        console.log('ℹ️ Этот экран не требует автодополнения:', window.currentScreen);
         return;
     }
     
+    // 3. Находим поле
     const input = document.getElementById(fieldId);
     if (!input) {
-        console.error(`❌ Поле ${fieldId} не найдено на странице!`);
+        console.error(`❌ Поле ${fieldId} не найдено!`);
         return;
     }
     
-    console.log(`✅ Найдено поле ${fieldId}, настраиваем...`);
+    console.log(`✅ Поле найдено: ${fieldId}`);
     
-    // ОЧЕНЬ простой обработчик
+    // 4. ПРОСТЕЙШИЙ обработчик - только логирование
     input.addEventListener('input', function(e) {
-        const value = e.target.value.trim();
-        console.log(`Пользователь ввел в ${fieldId}: "${value}"`);
+        const value = e.target.value;
+        console.log(`Ввод: "${value}" в поле ${fieldId}`);
         
-        if (value.length >= 2 && window.RUSSIAN_CITIES) {
+        if (value.length >= 2) {
             const results = window.RUSSIAN_CITIES.filter(city => 
                 city.toLowerCase().includes(value.toLowerCase())
-            ).slice(0, 5);
+            );
             
-            console.log(`По запросу "${value}" найдено ${results.length} городов:`, results);
-            
-            // Просто покажем в alert для теста
-            if (results.length > 0) {
-                console.log('🎉 Автодополнение работает!');
-                // Раскомментируйте для показа в alert:
-                // alert(`Найдены города:\n${results.join('\n')}`);
-            }
+            console.log(`Найдено ${results.length} городов. Первые 3:`, results.slice(0, 3));
         }
     });
     
-    // Автоматический тест
+    // 5. Автоматический тест
     setTimeout(() => {
         input.value = 'Мо';
-        const event = new Event('input', { bubbles: true });
-        input.dispatchEvent(event);
         console.log(`🔄 Автотест: заполнено "Мо" в поле ${fieldId}`);
-    }, 500);
+        
+        // Триггерим событие ввода
+        input.dispatchEvent(new Event('input'));
+    }, 300);
+    
+    console.log('=== КОНЕЦ setupCityAutocomplete ===');
 }
 
 function handleCityInput(e) {
