@@ -56,16 +56,6 @@ function initYandexMap() {
         // 2. Ждем готовности API - ВАЖНО: ymaps.options доступен только внутри ymaps.ready!
         ymaps.ready(() => {
             try {
-                // 3. Пробуем включить отладку (только после ymaps.ready!)
-                if (ymaps.options && typeof ymaps.options.set === 'function') {
-                    ymaps.options.set({ debug: true });
-                    console.log('[YaMaps] Детальное логирование включено');
-                }
-            } catch (e) {
-                console.warn('[YaMaps] Не удалось включить отладку:', e.message);
-            }
-            
-            try {
                 // 4. Проверяем существование контейнера
                 const mapContainer = document.getElementById('yandex-map');
                 if (!mapContainer) {

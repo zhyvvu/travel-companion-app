@@ -2104,3 +2104,50 @@ window.createTrip = createTrip;
 window.searchTrips = searchTrips;
 window.bookTrip = bookTrip;
 window.showTripDetails = showTripDetails;
+
+window.testCityAutocomplete = function() {
+    console.log('=== ТЕСТ АВТОДОПОЛНЕНИЯ ГОРОДОВ ===');
+    
+    // 1. Проверка базовых данных
+    console.log('1. Данные доступны?');
+    console.log('   - RUSSIAN_CITIES:', window.RUSSIAN_CITIES ? '✓ ' + window.RUSSIAN_CITIES.length + ' городов' : '✗ НЕТ');
+    console.log('   - setupCityAutocomplete:', typeof setupCityAutocomplete === 'function' ? '✓ Есть' : '✗ НЕТ');
+    
+    // 2. Проверка полей на текущем экране
+    console.log('2. Текущий экран:', window.currentScreen);
+    
+    const fieldsToCheck = window.currentScreen === 'find-trip' 
+        ? ['from-input', 'to-input'] 
+        : window.currentScreen === 'create-trip' 
+            ? ['trip-from', 'trip-to'] 
+            : [];
+    
+    console.log('3. Проверяемые поля:', fieldsToCheck);
+    
+    fieldsToCheck.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            console.log(`   ${id}: ✓ НАЙДЕНО`, {
+                visible: el.offsetParent !== null,
+                value: el.value,
+                hasEvents: el._autocompleteHandler ? '✓ Да' : '✗ Нет'
+            });
+            
+            // Тестируем ввод
+            el.value = 'Мо';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            console.log(`   ${id}: Введено "Мо"`);
+        } else {
+            console.log(`   ${id}: ✗ НЕ НАЙДЕНО`);
+        }
+    });
+    
+    // 3. Запускаем настройку
+    if (typeof setupCityAutocomplete === 'function') {
+        console.log('4. Запускаем setupCityAutocomplete()...');
+        const count = setupCityAutocomplete();
+        console.log('5. Настроено полей:', count);
+    }
+    
+    console.log('=== ТЕСТ ЗАВЕРШЕН ===');
+};
