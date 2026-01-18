@@ -315,15 +315,21 @@ function showScreen(screenId) {
                 
             case 'create-trip':
                 initCreateTripForm();
-                // СБРАСЫВАЕМ ФЛАГ и инициализируем автодополнение с задержкой
+                // Инициализируем автодополнение
                 setTimeout(() => {
-                    console.log('🚀 Инициализируем автодополнение для create-trip');
                     if (typeof setupCityAutocomplete === 'function') {
                         setupCityAutocomplete();
-                    } else {
-                        console.error('❌ Функция setupCityAutocomplete не найдена!');
                     }
-                }, 150);
+                }, 100);
+                
+                // Очищаем маршрут при входе на экран
+                setTimeout(() => {
+                    if (typeof TripRouteMap !== 'undefined') {
+                        TripRouteMap.clearRoute();
+                        // Скрываем карту
+                        document.getElementById('route-map-container').style.display = 'none';
+                    }
+                }, 50);
                 break;
                 
             case 'find-trip':
@@ -989,7 +995,7 @@ function setDefaultStats() {
 // =============== ФОРМЫ ===============
 
 function initCreateTripForm() {
-    // Устанавливаем сегодняшнюю дату по умолчанию
+    // Устанавливаем сегодняшнюю дату
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     const dateInput = document.getElementById('trip-date');
@@ -998,30 +1004,33 @@ function initCreateTripForm() {
         dateInput.min = todayStr;
     }
     
-    // Устанавливаем время по умолчанию (текущее время, округленное до ближайших 15 минут + 1 час)
-    const now = new Date();
-    
-    // Округляем до ближайших 15 минут
-    const minutes = now.getMinutes();
-    const roundedMinutes = Math.ceil(minutes / 15) * 15;
-    
-    // Создаем новое время
-    const defaultTime = new Date(now);
-    defaultTime.setMinutes(roundedMinutes);
-    defaultTime.setHours(defaultTime.getHours() + 1); // Добавляем 1 час вперед
-    
-    // Форматируем как HH:MM
-    const hours = defaultTime.getHours().toString().padStart(2, '0');
-    const mins = defaultTime.getMinutes().toString().padStart(2, '0');
-    const defaultTimeStr = `${hours}:${mins}`;
-    
+    // Время по умолчанию (+2 часа от текущего)
     const timeInput = document.getElementById('trip-time');
     if (timeInput) {
-        timeInput.value = defaultTimeStr;
+        const now = new Date();
+        now.setHours(now.getHours() + 2);
+        timeInput.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     }
     
     // Обновляем выбор автомобиля
     updateCarSelect();
+    
+    // Очищаем карту при инициализации формы
+    if (typeof TripRouteMap !== 'undefined') {
+        TripRouteMap.clearRoute();
+    }
+    
+    // Обновляем время прибытия при изменении времени
+    dateInput?.addEventListener('change', updateArrivalTimeFromForm);
+    timeInput?.addEventListener('change', updateArrivalTimeFromForm);
+}
+
+// Функция обновления времени прибытия из формы
+function updateArrivalTimeFromForm() {
+    if (typeof TripRouteMap !== 'undefined') {
+        // TripRouteMap сам обновит время в своём модуле
+        console.log('🔄 Обновление времени прибытия...');
+    }
 }
 
 function initSearchForm() {
@@ -1054,13 +1063,40 @@ async function createTrip() {
         const price_per_seat = parseFloat(document.getElementById('trip-price').value);
         const comment = document.getElementById('trip-comment').value.trim();
         
+        // Получаем данные маршрута с карты
+        let route_data = null;
+        if (typeof TripRouteMap !== 'undefined') {
+            route_data = TripRouteMap.getRouteData();
+            
+            // Если на карте есть точки, используем их координаты
+            if (route_data.start_point && route_data.finish_point) {
+                console.log('✅ Используем данные с карты:', {
+                    distance: route_data.distance,
+                    duration: route_data.duration
+                });
+            }
+        }
+        
         // Валидация
         if (!start_address || !finish_address || !dateStr || !departure_time || !price_per_seat || !available_seats) {
             showNotification('Заполните все обязательные поля', 'warning');
             return;
         }
         
-        // Создаем объект DateTime
+        // Расчётное время прибытия (для автоматического изменения статуса)
+        let estimated_arrival = null;
+        if (route_data?.duration) {
+            try {
+                const departureTime = new Date(dateStr + 'T' + departure_time);
+                const arrivalTime = new Date(departureTime.getTime() + (route_data.duration * 60000));
+                estimated_arrival = arrivalTime.toISOString();
+                console.log('⏰ Расчётное время прибытия:', estimated_arrival);
+            } catch (error) {
+                console.error('Ошибка расчёта времени прибытия:', error);
+            }
+        }
+        
+        // Создаем объект для отправки
         const departure_date = new Date(dateStr + 'T' + departure_time + 'Z');
         
         const tripData = {
@@ -1072,6 +1108,16 @@ async function createTrip() {
             price_per_seat: price_per_seat,
             comment: comment || null
         };
+        
+        // Добавляем данные карты, если есть
+        if (route_data) {
+            tripData.route_data = route_data;
+        }
+        
+        // Добавляем расчётное время прибытия
+        if (estimated_arrival) {
+            tripData.estimated_arrival = estimated_arrival;
+        }
         
         console.log('📤 Отправка данных поездки:', tripData);
         
@@ -1092,11 +1138,10 @@ async function createTrip() {
         
         if (response.ok && result.success) {
             showNotification('✅ Поездка успешно создана!', 'success');
+            
             // Очищаем форму
-            document.getElementById('trip-from').value = '';
-            document.getElementById('trip-to').value = '';
-            document.getElementById('trip-price').value = '';
-            document.getElementById('trip-comment').value = '';
+            clearCreateTripForm();
+            
             // Возвращаем на главную
             setTimeout(() => showScreen('welcome'), 1500);
         } else {
@@ -1106,6 +1151,28 @@ async function createTrip() {
         console.error('❌ Ошибка создания поездки:', error);
         showNotification('Ошибка при создании поездки', 'error');
     }
+}
+
+/**
+ * Очищает форму создания поездки
+ */
+function clearCreateTripForm() {
+    // Очищаем поля
+    document.getElementById('trip-from').value = '';
+    document.getElementById('trip-to').value = '';
+    document.getElementById('trip-price').value = '';
+    document.getElementById('trip-comment').value = '';
+    
+    // Очищаем карту
+    if (typeof TripRouteMap !== 'undefined') {
+        TripRouteMap.clearRoute();
+    }
+    
+    // Скрываем карту
+    document.getElementById('route-map-container').style.display = 'none';
+    
+    // Скрываем время прибытия
+    document.getElementById('arrival-time-container').style.display = 'none';
 }
 
 // =============== ПОИСК ПОЕЗДОК ===============

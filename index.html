@@ -1,5 +1,12 @@
 <!DOCTYPE html>
 <html lang="ru">
+
+<!-- Подключение модулей карт -->
+<script src="https://api-maps.yandex.ru/2.1/?apikey=46046ee2-ef66-47ae-b570-ca0680738074&lang=ru_RU"></script>
+<script src="yandex-maps.js"></script>
+<script src="trip-route-map.js"></script> <!-- НОВЫЙ МОДУЛЬ -->
+<script src="app.js"></script>
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -119,18 +126,86 @@
                 </div>
                 
                 <div class="trip-form">
+                    <!-- Секция маршрута с картой -->
                     <div class="form-section">
                         <h3><i class="fas fa-route"></i> Маршрут</h3>
-                        <div class="input-group">
-                            <i class="fas fa-map-marker-alt"></i>
-                            <input type="text" id="trip-from" placeholder="Откуда">
+                        
+                        <div class="input-row">
+                            <div class="input-group" style="flex: 1;">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <input type="text" id="trip-from" placeholder="Откуда (город или адрес)" 
+                                    autocomplete="off">
+                            </div>
+                            <button id="btn-swap-route" class="btn-small" style="margin: 0 10px; padding: 10px;" 
+                                    title="Поменять местами">
+                                <i class="fas fa-exchange-alt"></i>
+                            </button>
+                            <div class="input-group" style="flex: 1;">
+                                <i class="fas fa-flag-checkered"></i>
+                                <input type="text" id="trip-to" placeholder="Куда (город или адрес)" 
+                                    autocomplete="off">
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <i class="fas fa-flag-checkered"></i>
-                            <input type="text" id="trip-to" placeholder="Куда">
+                        
+                        <!-- Кнопка поиска на карте -->
+                        <button id="btn-show-route-on-map" class="btn-secondary" style="width: 100%; margin-top: 10px;">
+                            <i class="fas fa-map-marked-alt"></i> Показать на карте
+                        </button>
+                        
+                        <!-- Блок карты (изначально скрыт) -->
+                        <div id="route-map-container" style="display: none; margin-top: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h4><i class="fas fa-map"></i> Карта маршрута</h4>
+                                <button type="button" id="btn-hide-map" class="btn-small">
+                                    <i class="fas fa-times"></i> Скрыть
+                                </button>
+                            </div>
+                            
+                            <!-- Контейнер карты -->
+                            <div id="route-map" style="width: 100%; height: 350px; border-radius: 8px; border: 1px solid #ddd;"></div>
+                            
+                            <!-- Панель управления картой -->
+                            <div class="map-controls" style="display: flex; gap: 10px; margin-top: 10px;">
+                                <button id="btn-set-start" class="map-control-btn active">
+                                    <i class="fas fa-map-marker-alt"></i> Выбрать "Откуда"
+                                </button>
+                                <button id="btn-set-finish" class="map-control-btn">
+                                    <i class="fas fa-flag-checkered"></i> Выбрать "Куда"
+                                </button>
+                                <button id="btn-search-on-map" class="map-control-btn">
+                                    <i class="fas fa-search"></i> Найти на карте
+                                </button>
+                            </div>
+                            
+                            <!-- Информация о маршруте -->
+                            <div id="route-info" style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; display: none;">
+                                <h5 style="margin: 0 0 10px 0;"><i class="fas fa-info-circle"></i> Информация о маршруте</h5>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                    <div>
+                                        <small>Расстояние</small>
+                                        <div><strong id="route-distance">0 км</strong></div>
+                                    </div>
+                                    <div>
+                                        <small>Время в пути</small>
+                                        <div><strong id="route-duration">0 мин</strong></div>
+                                    </div>
+                                    <div>
+                                        <small>Начало</small>
+                                        <div id="start-address" style="font-size: 12px; color: #666;">Не выбрано</div>
+                                    </div>
+                                    <div>
+                                        <small>Конец</small>
+                                        <div id="finish-address" style="font-size: 12px; color: #666;">Не выбрано</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Скрытые поля для данных маршрута -->
+                            <input type="hidden" id="route-data" name="route_data">
                         </div>
                     </div>
                     
+                    <!-- Дата и время -->
                     <div class="form-section">
                         <h3><i class="fas fa-clock"></i> Дата и время</h3>
                         <div class="input-row">
@@ -143,8 +218,20 @@
                                 <input type="time" id="trip-time">
                             </div>
                         </div>
+                        
+                        <!-- Расчётное время прибытия -->
+                        <div id="arrival-time-container" style="margin-top: 10px; display: none;">
+                            <div style="display: flex; align-items: center; background: #e3f2fd; padding: 10px; border-radius: 6px;">
+                                <i class="fas fa-hourglass-end" style="margin-right: 10px; color: #1976d2;"></i>
+                                <div>
+                                    <small>Расчётное время прибытия</small>
+                                    <div><strong id="arrival-time">--:--</strong></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
+                    <!-- Автомобиль и цена -->
                     <div class="form-section">
                         <h3><i class="fas fa-car"></i> Автомобиль</h3>
                         <div class="input-group">
@@ -163,9 +250,6 @@
                                     <option value="3" selected>3 места</option>
                                     <option value="4">4 места</option>
                                     <option value="5">5 мест</option>
-                                    <option value="6">6 мест</option>
-                                    <option value="7">7 мест</option>
-                                    <option value="8">8 мест</option>
                                 </select>
                             </div>
                             <div class="input-group half">
@@ -175,6 +259,7 @@
                         </div>
                     </div>
                     
+                    <!-- Комментарий -->
                     <div class="form-section">
                         <h3><i class="fas fa-comment"></i> Комментарий (необязательно)</h3>
                         <div class="input-group">
@@ -183,9 +268,9 @@
                         </div>
                     </div>
                     
-                    <button class="submit-btn">
-                        <i class="fas fa-paper-plane"></i>
-                        Опубликовать поездку
+                    <!-- Кнопка отправки -->
+                    <button class="submit-btn" onclick="createTrip()">
+                        <i class="fas fa-paper-plane"></i> Опубликовать поездку
                     </button>
                 </div>
             </section>

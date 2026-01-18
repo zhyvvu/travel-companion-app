@@ -1447,3 +1447,33 @@ main {
     font-weight: bold;
     color: #4a6cf7;
 }
+
+/* Стили для кнопок управления картой */
+.map-control-btn {
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+    flex: 1;
+}
+
+.map-control-btn:hover {
+    background: #e0e0e0;
+}
+
+.map-control-btn.active {
+    background: #4a6cf7;
+    color: white;
+    border-color: #4a6cf7;
+}
+
+.map-control-btn i {
+    font-size: 12px;
+}
