@@ -1,14 +1,15 @@
 // ====================== trip-route-map.js ======================
 // Комплексный модуль для работы с маршрутами в форме создания поездки
 
-// Глобальный объект для Яндекс Карт
-window.YandexMapsModule = (function() {
+// Глобальный объект для Яндекс Карт - ИМЕННО TripRouteMap
+window.TripRouteMap = (function() {
+    'use strict';
+    
     let routeMap = null;
     let startPlacemark = null;
     let finishPlacemark = null;
     let route = null;
     let currentMode = 'start'; // 'start' или 'finish'
-    let searchControl = null;
     
     // Данные маршрута для отправки на сервер
     let routeData = {
@@ -111,7 +112,9 @@ window.YandexMapsModule = (function() {
             currentMode = mode;
             updateModeButtons();
             console.log(`📌 Режим установлен: ${mode}`);
+            return true;
         }
+        return false;
     }
     
     /**
@@ -154,10 +157,8 @@ window.YandexMapsModule = (function() {
             bounds: null
         };
         
-        // Обновляем UI
-        updateRouteInfo();
-        
         console.log('✅ Маршрут очищен');
+        return true;
     }
     
     /**
@@ -166,7 +167,7 @@ window.YandexMapsModule = (function() {
     function buildRoute() {
         if (!startPlacemark || !finishPlacemark || !routeMap) {
             console.log('⚠️ Не хватает точек для маршрута или карта не инициализирована');
-            return;
+            return false;
         }
         
         const startCoords = startPlacemark.geometry.getCoordinates();
@@ -213,12 +214,54 @@ window.YandexMapsModule = (function() {
                     duration: routeData.duration + ' мин'
                 });
                 
-                // Обновляем UI
-                updateRouteInfo();
-                
                 // Сохраняем данные в скрытое поле
                 saveRouteData();
             }
+        });
+        
+        return true;
+    }
+    
+    /**
+     * Ищет адрес и устанавливает точку
+     */
+    function searchAndSetPoint(address, pointType) {
+        if (!address.trim()) {
+            console.log('⚠️ Адрес для поиска не указан');
+            return Promise.reject('Адрес не указан');
+        }
+        
+        console.log(`🔍 Поиск адреса (${pointType}):`, address);
+        
+        return ymaps.geocode(address).then(function(res) {
+            const firstGeoObject = res.geoObjects.get(0);
+            
+            if (!firstGeoObject) {
+                console.error('❌ Адрес не найден');
+                throw new Error('Адрес не найден');
+            }
+            
+            const coords = firstGeoObject.geometry.getCoordinates();
+            const foundAddress = firstGeoObject.getAddressLine();
+            
+            // Устанавливаем точку
+            if (pointType === 'start') {
+                setStartPoint(coords, foundAddress);
+            } else {
+                setFinishPoint(coords, foundAddress);
+            }
+            
+            // Центрируем карту
+            if (routeMap) {
+                routeMap.setCenter(coords, 14);
+            }
+            
+            console.log(`✅ Точка установлена: ${foundAddress}`);
+            return { coords, address: foundAddress };
+            
+        }).catch(function(error) {
+            console.error('❌ Ошибка поиска адреса:', error);
+            throw error;
         });
     }
     
@@ -234,9 +277,8 @@ window.YandexMapsModule = (function() {
         const startBtn = document.getElementById('btn-set-start');
         if (startBtn) {
             startBtn.addEventListener('click', function() {
-                currentMode = 'start';
-                updateModeButtons();
-                showNotification('Кликните на карте для выбора точки "Откуда"', 'info');
+                setCurrentMode('start');
+                console.log('📌 Режим: выбор точки "Откуда"');
             });
         }
         
@@ -244,9 +286,8 @@ window.YandexMapsModule = (function() {
         const finishBtn = document.getElementById('btn-set-finish');
         if (finishBtn) {
             finishBtn.addEventListener('click', function() {
-                currentMode = 'finish';
-                updateModeButtons();
-                showNotification('Кликните на карте для выбора точки "Куда"', 'info');
+                setCurrentMode('finish');
+                console.log('📌 Режим: выбор точки "Куда"');
             });
         }
         
@@ -273,7 +314,7 @@ window.YandexMapsModule = (function() {
         if (startBtn) {
             startBtn.addEventListener('click', function() {
                 setCurrentMode('start');
-                showNotification('Кликните на карте для выбора точки "Откуда"', 'info');
+                console.log('📌 Режим: выбор точки "Откуда"');
             });
         }
         
@@ -282,7 +323,7 @@ window.YandexMapsModule = (function() {
         if (finishBtn) {
             finishBtn.addEventListener('click', function() {
                 setCurrentMode('finish');
-                showNotification('Кликните на карте для выбора точки "Куда"', 'info');
+                console.log('📌 Режим: выбор точки "Куда"');
             });
         }
         
@@ -291,7 +332,7 @@ window.YandexMapsModule = (function() {
         if (clearBtn) {
             clearBtn.addEventListener('click', function() {
                 clearRoute();
-                showNotification('Маршрут очищен', 'info');
+                console.log('🗑️ Маршрут очищен');
             });
         }
         
@@ -319,52 +360,13 @@ window.YandexMapsModule = (function() {
     }
     
     /**
-     * Ищет адрес и устанавливает точку
-     */
-    function searchAndSetPoint(address, pointType) {
-        if (!address.trim()) {
-            showNotification('Введите адрес для поиска', 'warning');
-            return;
-        }
-        
-        console.log(`🔍 Поиск адреса (${pointType}):`, address);
-        
-        ymaps.geocode(address).then(function(res) {
-            const firstGeoObject = res.geoObjects.get(0);
-            
-            if (!firstGeoObject) {
-                showNotification('Адрес не найден. Уточните запрос.', 'warning');
-                return;
-            }
-            
-            const coords = firstGeoObject.geometry.getCoordinates();
-            const foundAddress = firstGeoObject.getAddressLine();
-            
-            // Устанавливаем точку
-            if (pointType === 'start') {
-                setStartPoint(coords, foundAddress);
-            } else {
-                setFinishPoint(coords, foundAddress);
-            }
-            
-            // Центрируем карту
-            if (routeMap) {
-                routeMap.setCenter(coords, 14);
-            }
-            
-            showNotification(`Точка установлена: ${foundAddress}`, 'success');
-            
-        }).catch(function(error) {
-            console.error('❌ Ошибка поиска адреса:', error);
-            showNotification('Ошибка поиска адреса', 'error');
-        });
-    }
-    
-    /**
      * Устанавливает точку начала маршрута
      */
     function setStartPoint(coords, address = '') {
-        if (!routeMap) return;
+        if (!routeMap) {
+            console.error('❌ Карта не инициализирована');
+            return false;
+        }
         
         // Удаляем старую метку
         if (startPlacemark) {
@@ -403,15 +405,17 @@ window.YandexMapsModule = (function() {
             buildRoute();
         }
         
-        // Обновляем UI
-        updateRouteInfo();
+        return true;
     }
     
     /**
      * Устанавливает точку окончания маршрута
      */
     function setFinishPoint(coords, address = '') {
-        if (!routeMap) return;
+        if (!routeMap) {
+            console.error('❌ Карта не инициализирована');
+            return false;
+        }
         
         // Удаляем старую метку
         if (finishPlacemark) {
@@ -450,8 +454,7 @@ window.YandexMapsModule = (function() {
             buildRoute();
         }
         
-        // Обновляем UI
-        updateRouteInfo();
+        return true;
     }
     
     /**
@@ -624,18 +627,6 @@ window.YandexMapsModule = (function() {
             address;
     }
     
-    /**
-     * Показывает уведомление
-     */
-    function showNotification(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
-        
-        // Можно добавить визуальные уведомления
-        if (typeof window.showNotification === 'function') {
-            window.showNotification(message, type);
-        }
-    }
-    
     // ====================== ПУБЛИЧНЫЙ ИНТЕРФЕЙС ======================
     return {
         init: initRouteMap,
@@ -648,8 +639,19 @@ window.YandexMapsModule = (function() {
         searchAndSetPoint: searchAndSetPoint,
         setStartPoint: setStartPoint,
         setFinishPoint: setFinishPoint,
-        updateRouteInfo: updateRouteInfo
+        updateRouteInfo: updateRouteInfo,
+        updateModeButtons: updateModeButtons,
+        show: function() {
+            const container = document.getElementById('route-map-container');
+            if (container) container.style.display = 'block';
+            return true;
+        },
+        hide: function() {
+            const container = document.getElementById('route-map-container');
+            if (container) container.style.display = 'none';
+            return true;
+        }
     };
 })();
 
-console.log('✅ Модуль YandexMapsModule загружен и готов к использованию');
+console.log('✅ Модуль TripRouteMap загружен и готов к использованию');
