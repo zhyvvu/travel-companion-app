@@ -1223,6 +1223,58 @@ async function searchTrips() {
     }
 }
 
+/**
+ * Проверяет и обновляет статус поездки на основе estimated_arrival
+ * @param {Object} trip - Объект поездки
+ * @returns {Object} Обновлённая поездка
+ */
+function checkAndUpdateTripStatus(trip) {
+    // Если есть время прибытия и поездка ещё активна
+    if (trip.estimated_arrival && trip.status === 'active') {
+        const now = new Date();
+        const arrivalTime = new Date(trip.estimated_arrival);
+        
+        // Если время прибытия уже прошло
+        if (now > arrivalTime) {
+            console.log(`🔄 Автоматическое завершение поездки #${trip.id}`);
+            
+            // Меняем статус локально (только для отображения)
+            return {
+                ...trip,
+                status: 'completed',
+                display_status: 'completed' // Дополнительное поле для UI
+            };
+        }
+    }
+    
+    return trip;
+}
+
+/**
+ * Возвращает текст статуса для отображения
+ */
+function getStatusText(status) {
+    const statusMap = {
+        'active': 'Активна',
+        'completed': 'Завершена',
+        'cancelled': 'Отменена'
+    };
+    return statusMap[status] || status;
+}
+
+/**
+ * Возвращает CSS класс для статуса
+ */
+function getStatusClass(status) {
+    const classMap = {
+        'active': 'status-active',
+        'completed': 'status-completed',
+        'cancelled': 'status-cancelled'
+    };
+    return classMap[status] || 'status-unknown';
+}
+
+
 function displaySearchResults(trips) {
     const resultsContainer = document.getElementById('search-results');
     if (!resultsContainer) return;
@@ -1238,7 +1290,10 @@ function displaySearchResults(trips) {
         return;
     }
     
-    resultsContainer.innerHTML = trips.map(trip => `
+    // Проверяем и обновляем статусы перед отображением
+    const updatedTrips = trips.map(checkAndUpdateTripStatus);
+    
+    resultsContainer.innerHTML = updatedTrips.map(trip => `
         <div class="trip-card" onclick="showTripDetails(${trip.id})">
             <div class="trip-header">
                 <div class="driver-info">
@@ -1261,24 +1316,50 @@ function displaySearchResults(trips) {
                 <i class="fas fa-arrow-right"></i>
                 <i class="fas fa-flag-checkered"></i>
                 <span>${trip.route.to}</span>
+                
+                <!-- СТАТУС ПОЕЗДКИ (НОВОЕ!) -->
+                <span class="trip-status ${getStatusClass(trip.status || 'active')}">
+                    ${getStatusText(trip.status || 'active')}
+                </span>
             </div>
             
             <div class="trip-details">
                 <div><i class="fas fa-calendar"></i> ${trip.departure.datetime}</div>
                 <div><i class="fas fa-users"></i> ${trip.seats.available} мест</div>
                 ${trip.car_info ? `<div><i class="fas fa-car"></i> ${trip.car_info.model}</div>` : ''}
+                
+                <!-- ВРЕМЯ ПРИБЫТИЯ (НОВОЕ!) -->
+                ${trip.estimated_arrival ? `
+                    <div><i class="fas fa-hourglass-end"></i> Прибытие: ${formatArrivalTime(trip.estimated_arrival)}</div>
+                ` : ''}
             </div>
             
             <div class="trip-actions">
-                <button class="btn-book" onclick="event.stopPropagation(); bookTrip(${trip.id})">
-                    <i class="fas fa-check"></i> Забронировать
-                </button>
+                <!-- Скрываем кнопку бронирования для завершённых поездок -->
+                ${(trip.status === 'active' || !trip.status) ? `
+                    <button class="btn-book" onclick="event.stopPropagation(); bookTrip(${trip.id})">
+                        <i class="fas fa-check"></i> Забронировать
+                    </button>
+                ` : ''}
+                
                 <button class="btn-details" onclick="event.stopPropagation(); showTripDetails(${trip.id})">
                     <i class="fas fa-info-circle"></i> Подробнее
                 </button>
             </div>
         </div>
     `).join('');
+}
+
+/**
+ * Форматирует время прибытия
+ */
+function formatArrivalTime(isoString) {
+    try {
+        const date = new Date(isoString);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+        return '--:--';
+    }
 }
 
 // =============== ПОКАЗАТЬ ДЕТАЛИ ПОЕЗДКИ ===============
