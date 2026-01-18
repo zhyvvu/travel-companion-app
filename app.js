@@ -1029,68 +1029,46 @@ function initCreateTripForm() {
     // Обновляем выбор автомобиля
     updateCarSelect();
     
-    // Инициализируем автодополнение для полей адресов
+    // Простое автодополнение (только логирование)
     setTimeout(() => {
-        console.log('🔍 Инициализация автодополнения адресов...');
+        console.log('🔍 Настройка автодополнения...');
         
-        // Проверяем, какая функция доступна
-        if (typeof initAddressAutocomplete === 'function') {
-            // Используем новую функцию автодополнения
-            initAddressAutocomplete();
-            console.log('✅ Автодополнение адресов инициализировано (новый метод)');
-        } 
-        else if (typeof setupCityAutocomplete === 'function') {
-            // Используем старую функцию как запасной вариант
-            setupCityAutocomplete();
-            console.log('✅ Автодополнение адресов инициализировано (старый метод)');
-        }
-        else {
-            console.warn('⚠️ Функции автодополнения не найдены');
-            
-            // Простой fallback - добавляем базовое автодополнение
-            const fromInput = document.getElementById('trip-from');
-            const toInput = document.getElementById('trip-to');
-            
-            if (fromInput && toInput && window.RUSSIAN_CITIES) {
-                console.log('🔄 Создаем базовое автодополнение...');
-                
-                // Простое автодополнение при фокусе
-                fromInput.addEventListener('focus', function() {
-                    if (this.value.length >= 2) {
-                        showSimpleCitySuggestions('trip-from', this.value);
+        const fromInput = document.getElementById('trip-from');
+        const toInput = document.getElementById('trip-to');
+        
+        if (fromInput && toInput) {
+            // Просто добавляем подсказку при вводе
+            fromInput.addEventListener('input', function() {
+                const value = this.value;
+                if (value.length >= 2 && window.RUSSIAN_CITIES) {
+                    const matches = window.RUSSIAN_CITIES.filter(city => 
+                        city.toLowerCase().includes(value.toLowerCase())
+                    ).slice(0, 3);
+                    
+                    if (matches.length > 0 && matches[0].toLowerCase() === value.toLowerCase()) {
+                        // Автозаполнение если точное совпадение
+                        this.value = matches[0];
+                        console.log(`✅ Автозаполнено: ${matches[0]}`);
                     }
-                });
-                
-                toInput.addEventListener('focus', function() {
-                    if (this.value.length >= 2) {
-                        showSimpleCitySuggestions('trip-to', this.value);
+                }
+            });
+            
+            toInput.addEventListener('input', function() {
+                const value = this.value;
+                if (value.length >= 2 && window.RUSSIAN_CITIES) {
+                    const matches = window.RUSSIAN_CITIES.filter(city => 
+                        city.toLowerCase().includes(value.toLowerCase())
+                    ).slice(0, 3);
+                    
+                    if (matches.length > 0 && matches[0].toLowerCase() === value.toLowerCase()) {
+                        this.value = matches[0];
+                        console.log(`✅ Автозаполнено: ${matches[0]}`);
                     }
-                });
-                
-                console.log('✅ Базовое автодополнение настроено');
-            }
+                }
+            });
+            
+            console.log('✅ Простое автодополнение настроено');
         }
-        
-        // Тест автодополнения - можно закомментировать после отладки
-        setTimeout(() => {
-            console.log('🧪 Тестируем автодополнение...');
-            const fromInput = document.getElementById('trip-from');
-            const toInput = document.getElementById('trip-to');
-            
-            if (fromInput) {
-                console.log(`Поле "Откуда": ${fromInput ? 'найдено' : 'не найдено'}`);
-                console.log(`Значение: "${fromInput.value}"`);
-            }
-            
-            if (toInput) {
-                console.log(`Поле "Куда": ${toInput ? 'найдено' : 'не найдено'}`);
-                console.log(`Значение: "${toInput.value}"`);
-            }
-            
-            // Проверяем список городов
-            console.log(`Список городов: ${window.RUSSIAN_CITIES ? window.RUSSIAN_CITIES.length + ' городов' : 'не загружен'}`);
-        }, 200);
-        
     }, 100);
     
     console.log('✅ Форма создания поездки инициализирована');
@@ -2590,66 +2568,132 @@ function initAddressAutocomplete() {
     
     console.log(`✅ Список городов доступен: ${window.RUSSIAN_CITIES.length} городов`);
     
-    // Обработчик для поля "Откуда"
+    // Простые обработчики для отладки
     fromInput.addEventListener('input', function(e) {
-        const value = e.target.value.trim();
+        const value = e.target.value;
+        console.log(`Ввод в "Откуда": "${value}"`);
+        
+        // Просто логируем, без реальных подсказок
         if (value.length >= 2) {
-            showCitySuggestions('trip-from', value);
-        } else {
-            hideCitySuggestions('trip-from');
+            const results = window.RUSSIAN_CITIES.filter(city => 
+                city.toLowerCase().includes(value.toLowerCase())
+            ).slice(0, 3);
+            
+            if (results.length > 0) {
+                console.log(`💡 Подсказки для "Откуда": ${results.join(', ')}`);
+            }
         }
     });
     
-    fromInput.addEventListener('focus', function() {
-        const value = this.value.trim();
-        if (value.length >= 2) {
-            showCitySuggestions('trip-from', value);
-        }
-    });
-    
-    // Обработчик для поля "Куда"
     toInput.addEventListener('input', function(e) {
-        const value = e.target.value.trim();
+        const value = e.target.value;
+        console.log(`Ввод в "Куда": "${value}"`);
+        
         if (value.length >= 2) {
-            showCitySuggestions('trip-to', value);
-        } else {
-            hideCitySuggestions('trip-to');
-        }
-    });
-    
-    toInput.addEventListener('focus', function() {
-        const value = this.value.trim();
-        if (value.length >= 2) {
-            showCitySuggestions('trip-to', value);
-        }
-    });
-    
-    // Закрытие подсказок при клике вне поля
-    document.addEventListener('click', function(e) {
-        if (!fromInput.contains(e.target)) {
-            hideCitySuggestions('trip-from');
-        }
-        if (!toInput.contains(e.target)) {
-            hideCitySuggestions('trip-to');
+            const results = window.RUSSIAN_CITIES.filter(city => 
+                city.toLowerCase().includes(value.toLowerCase())
+            ).slice(0, 3);
+            
+            if (results.length > 0) {
+                console.log(`💡 Подсказки для "Куда": ${results.join(', ')}`);
+            }
         }
     });
     
     console.log('✅ Автодополнение адресов инициализировано');
+}
+
+/**
+ * Показывает подсказки городов
+ */
+function showCitySuggestions(fieldId, query) {
+    console.log(`🔍 Показываем подсказки для "${query}" (${fieldId})`);
     
-    // Автотест - можно закомментировать
-    setTimeout(() => {
-        console.log('🧪 Тест автодополнения...');
-        fromInput.value = 'Мо';
-        fromInput.dispatchEvent(new Event('input'));
+    if (!window.RUSSIAN_CITIES || !Array.isArray(window.RUSSIAN_CITIES)) {
+        console.error('❌ Список городов не доступен');
+        return;
+    }
+    
+    const queryLower = query.toLowerCase();
+    const results = window.RUSSIAN_CITIES.filter(city => 
+        city.toLowerCase().includes(queryLower)
+    ).slice(0, 5);
+    
+    if (results.length === 0) {
+        hideCitySuggestions(fieldId);
+        return;
+    }
+    
+    console.log(`Найдено ${results.length} городов:`, results);
+    
+    // Создаем или находим контейнер для подсказок
+    let container = document.getElementById(`${fieldId}-suggestions`);
+    
+    if (!container) {
+        container = document.createElement('div');
+        container.id = `${fieldId}-suggestions`;
+        container.className = 'city-suggestions';
+        container.style.cssText = `
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            width: calc(100% - 30px); /* Учитываем padding поля ввода */
+            margin-top: 5px;
+            display: none;
+        `;
         
-        setTimeout(() => {
-            toInput.value = 'Санкт';
-            toInput.dispatchEvent(new Event('input'));
-        }, 500);
-    }, 500);
+        const input = document.getElementById(fieldId);
+        if (input && input.parentNode) {
+            input.parentNode.style.position = 'relative';
+            input.parentNode.appendChild(container);
+        }
+    }
+    
+    // Заполняем контейнер
+    container.innerHTML = results.map(city => `
+        <div class="suggestion-item" 
+             onclick="selectCitySimple('${fieldId}', '${city.replace(/'/g, "\\'")}')"
+             style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 14px;"
+             onmouseover="this.style.background='#f5f5f5'"
+             onmouseout="this.style.background='white'">
+            <span style="color: #666; margin-right: 10px;">📍</span>
+            ${city}
+        </div>
+    `).join('');
+    
+    // Показываем контейнер
+    container.style.display = 'block';
+    
+    // Скрываем при клике вне
+    setTimeout(() => {
+        const clickHandler = (e) => {
+            if (!container.contains(e.target) && e.target.id !== fieldId) {
+                hideCitySuggestions(fieldId);
+                document.removeEventListener('click', clickHandler);
+            }
+        };
+        document.addEventListener('click', clickHandler);
+    }, 10);
+}
+
+/**
+ * Скрывает подсказки городов
+ */
+function hideCitySuggestions(fieldId) {
+    const container = document.getElementById(`${fieldId}-suggestions`);
+    if (container) {
+        container.style.display = 'none';
+    }
 }
 
 // Сделать функции глобальными
+window.showCitySuggestions = showCitySuggestions;
+window.hideCitySuggestions = hideCitySuggestions;
 window.swapRoutePoints = swapRoutePoints;
 window.showRouteOnMap = showRouteOnMap;
 window.hideRouteMap = hideRouteMap;

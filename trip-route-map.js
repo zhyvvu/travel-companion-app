@@ -648,7 +648,7 @@ window.YandexMapsModule = (function() {
         searchAndSetPoint: searchAndSetPoint,
         setStartPoint: setStartPoint,
         setFinishPoint: setFinishPoint
-        updateRouteInfo: updateRouteInfo,
+        updateRouteInfo: updateRouteInfo
     };
 })();
 
