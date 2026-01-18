@@ -1031,12 +1031,96 @@ function initCreateTripForm() {
     
     // Инициализируем автодополнение для полей адресов
     setTimeout(() => {
-        if (typeof setupCityAutocomplete === 'function') {
+        console.log('🔍 Инициализация автодополнения адресов...');
+        
+        // Проверяем, какая функция доступна
+        if (typeof initAddressAutocomplete === 'function') {
+            // Используем новую функцию автодополнения
+            initAddressAutocomplete();
+            console.log('✅ Автодополнение адресов инициализировано (новый метод)');
+        } 
+        else if (typeof setupCityAutocomplete === 'function') {
+            // Используем старую функцию как запасной вариант
             setupCityAutocomplete();
+            console.log('✅ Автодополнение адресов инициализировано (старый метод)');
         }
+        else {
+            console.warn('⚠️ Функции автодополнения не найдены');
+            
+            // Простой fallback - добавляем базовое автодополнение
+            const fromInput = document.getElementById('trip-from');
+            const toInput = document.getElementById('trip-to');
+            
+            if (fromInput && toInput && window.RUSSIAN_CITIES) {
+                console.log('🔄 Создаем базовое автодополнение...');
+                
+                // Простое автодополнение при фокусе
+                fromInput.addEventListener('focus', function() {
+                    if (this.value.length >= 2) {
+                        showSimpleCitySuggestions('trip-from', this.value);
+                    }
+                });
+                
+                toInput.addEventListener('focus', function() {
+                    if (this.value.length >= 2) {
+                        showSimpleCitySuggestions('trip-to', this.value);
+                    }
+                });
+                
+                console.log('✅ Базовое автодополнение настроено');
+            }
+        }
+        
+        // Тест автодополнения - можно закомментировать после отладки
+        setTimeout(() => {
+            console.log('🧪 Тестируем автодополнение...');
+            const fromInput = document.getElementById('trip-from');
+            const toInput = document.getElementById('trip-to');
+            
+            if (fromInput) {
+                console.log(`Поле "Откуда": ${fromInput ? 'найдено' : 'не найдено'}`);
+                console.log(`Значение: "${fromInput.value}"`);
+            }
+            
+            if (toInput) {
+                console.log(`Поле "Куда": ${toInput ? 'найдено' : 'не найдено'}`);
+                console.log(`Значение: "${toInput.value}"`);
+            }
+            
+            // Проверяем список городов
+            console.log(`Список городов: ${window.RUSSIAN_CITIES ? window.RUSSIAN_CITIES.length + ' городов' : 'не загружен'}`);
+        }, 200);
+        
     }, 100);
     
     console.log('✅ Форма создания поездки инициализирована');
+}
+
+// Если нужно, добавьте вспомогательную функцию для базового автодополнения
+function showSimpleCitySuggestions(fieldId, query) {
+    console.log(`🔍 Простой поиск городов для "${query}" в поле ${fieldId}`);
+    
+    if (!window.RUSSIAN_CITIES || !Array.isArray(window.RUSSIAN_CITIES)) {
+        console.error('❌ Список городов не доступен');
+        return;
+    }
+    
+    const queryLower = query.toLowerCase();
+    const results = window.RUSSIAN_CITIES.filter(city => 
+        city.toLowerCase().includes(queryLower)
+    ).slice(0, 5);
+    
+    console.log(`Найдено ${results.length} городов:`, results);
+    
+    if (results.length === 0) return;
+    
+    // Просто показываем подсказку в консоли для отладки
+    console.log(`💡 Подсказка для ${fieldId}: ${results.join(', ')}`);
+    
+    // Или можно вывести alert для тестирования
+    // if (results.length > 0 && confirm(`Выбрать "${results[0]}"?`)) {
+    //     document.getElementById(fieldId).value = results[0];
+    // }
 }
 
 // Функция обновления времени прибытия из формы
@@ -2482,6 +2566,87 @@ function updateArrivalTimeFromMap() {
     } catch (error) {
         console.error('❌ Ошибка расчёта времени прибытия:', error);
     }
+}
+
+/**
+ * Инициализирует автодополнение для полей адресов
+ */
+function initAddressAutocomplete() {
+    console.log('🔍 Инициализация автодополнения адресов...');
+    
+    const fromInput = document.getElementById('trip-from');
+    const toInput = document.getElementById('trip-to');
+    
+    if (!fromInput || !toInput) {
+        console.error('❌ Поля адресов не найдены');
+        return;
+    }
+    
+    // Проверяем список городов
+    if (!window.RUSSIAN_CITIES || !Array.isArray(window.RUSSIAN_CITIES)) {
+        console.error('❌ Список городов RUSSIAN_CITIES не загружен');
+        return;
+    }
+    
+    console.log(`✅ Список городов доступен: ${window.RUSSIAN_CITIES.length} городов`);
+    
+    // Обработчик для поля "Откуда"
+    fromInput.addEventListener('input', function(e) {
+        const value = e.target.value.trim();
+        if (value.length >= 2) {
+            showCitySuggestions('trip-from', value);
+        } else {
+            hideCitySuggestions('trip-from');
+        }
+    });
+    
+    fromInput.addEventListener('focus', function() {
+        const value = this.value.trim();
+        if (value.length >= 2) {
+            showCitySuggestions('trip-from', value);
+        }
+    });
+    
+    // Обработчик для поля "Куда"
+    toInput.addEventListener('input', function(e) {
+        const value = e.target.value.trim();
+        if (value.length >= 2) {
+            showCitySuggestions('trip-to', value);
+        } else {
+            hideCitySuggestions('trip-to');
+        }
+    });
+    
+    toInput.addEventListener('focus', function() {
+        const value = this.value.trim();
+        if (value.length >= 2) {
+            showCitySuggestions('trip-to', value);
+        }
+    });
+    
+    // Закрытие подсказок при клике вне поля
+    document.addEventListener('click', function(e) {
+        if (!fromInput.contains(e.target)) {
+            hideCitySuggestions('trip-from');
+        }
+        if (!toInput.contains(e.target)) {
+            hideCitySuggestions('trip-to');
+        }
+    });
+    
+    console.log('✅ Автодополнение адресов инициализировано');
+    
+    // Автотест - можно закомментировать
+    setTimeout(() => {
+        console.log('🧪 Тест автодополнения...');
+        fromInput.value = 'Мо';
+        fromInput.dispatchEvent(new Event('input'));
+        
+        setTimeout(() => {
+            toInput.value = 'Санкт';
+            toInput.dispatchEvent(new Event('input'));
+        }, 500);
+    }, 500);
 }
 
 // Сделать функции глобальными
