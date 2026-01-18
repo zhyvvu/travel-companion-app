@@ -357,9 +357,11 @@ function showScreen(screenId) {
                             initCreateTripMapForm();
                         }).catch(err => {
                             console.error('❌ Ошибка инициализации карты:', err);
+                            showNotification('Ошибка загрузки карты. Обновите страницу.', 'error');
                         });
                     } else {
                         console.error('❌ Модуль YandexMapsModule не найден!');
+                        showNotification('Ошибка загрузки модуля карт', 'error');
                     }
                 }, 150);
                 break;
