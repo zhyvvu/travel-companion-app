@@ -51,6 +51,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+
+// Функция для совместимости
+function selectCity(fieldId, city) {
+    const input = document.getElementById(fieldId);
+    if (input) input.value = city;
+    const suggestions = document.getElementById(`${fieldId}-suggestions`);
+    if (suggestions) suggestions.style.display = 'none';
+}
+window.selectCity = selectCity;
+
 // Основная инициализация Telegram
 async function initTelegram() {
     console.log('🔍 Инициализация Telegram...');
