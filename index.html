@@ -1,22 +1,19 @@
 <!DOCTYPE html>
 <html lang="ru">
-
-<!-- Подключение модулей карт -->
-<script src="https://api-maps.yandex.ru/2.1/?apikey=46046ee2-ef66-47ae-b570-ca0680738074&lang=ru_RU"></script>
-<script src="yandex-maps.js"></script>
-<script src="trip-route-map.js"></script> <!-- НОВЫЙ МОДУЛЬ -->
-<script src="app.js"></script>
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Travel Companion</title>
+    
+    <!-- 1. СНАЧАЛА Telegram (обязательно в head) -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- 2. Стили -->
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Яндекс.Карты -->
-    <script src="https://api-maps.yandex.ru/2.1/?apikey=46046ee2-ef66-47ae-b570-ca0680738074&lang=ru_RU" type="text/javascript"></script>
-    <script src="yandex-maps.js"></script>
+    
+    <!-- 3. Яндекс.Карты ТОЛЬКО ОДИН РАЗ -->
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=46046ee2-ef66-47ae-b570-ca0680738074&lang=ru_RU"></script>
 </head>
 <body>
     <div class="container">
