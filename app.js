@@ -1007,6 +1007,8 @@ function setDefaultStats() {
 // =============== ФОРМЫ ===============
 
 function initCreateTripForm() {
+    console.log('🚗 Инициализация формы создания поездки...');
+    
     // Устанавливаем сегодняшнюю дату
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -1027,14 +1029,14 @@ function initCreateTripForm() {
     // Обновляем выбор автомобиля
     updateCarSelect();
     
-    // Очищаем карту при инициализации формы
-    if (typeof TripRouteMap !== 'undefined') {
-        TripRouteMap.clearRoute();
-    }
+    // Инициализируем автодополнение для полей адресов
+    setTimeout(() => {
+        if (typeof setupCityAutocomplete === 'function') {
+            setupCityAutocomplete();
+        }
+    }, 100);
     
-    // Обновляем время прибытия при изменении времени
-    dateInput?.addEventListener('change', updateArrivalTimeFromForm);
-    timeInput?.addEventListener('change', updateArrivalTimeFromForm);
+    console.log('✅ Форма создания поездки инициализирована');
 }
 
 // Функция обновления времени прибытия из формы
@@ -2325,6 +2327,168 @@ window.debugApp = function() {
         console.log(`5. Тест поиска "${testQuery}":`, results);
     }
 };
+
+// =============== ФУНКЦИИ ДЛЯ ФОРМЫ СОЗДАНИЯ ПОЕЗДКИ ===============
+
+/**
+ * Поменять местами поля "Откуда" и "Куда"
+ */
+function swapRoutePoints() {
+    console.log('🔄 Меняем местами пункты маршрута');
+    
+    const fromField = document.getElementById('trip-from');
+    const toField = document.getElementById('trip-to');
+    
+    if (!fromField || !toField) {
+        console.error('❌ Не найдены поля маршрута');
+        showNotification('Ошибка: поля маршрута не найдены', 'error');
+        return;
+    }
+    
+    // Меняем значения
+    const temp = fromField.value;
+    fromField.value = toField.value;
+    toField.value = temp;
+    
+    console.log(`✅ Поменяли местами: "${temp}" ↔ "${fromField.value}"`);
+    showNotification('Пункты маршрута поменяны местами', 'success');
+    
+    // Если есть данные на карте - обновляем их
+    if (typeof TripRouteMap !== 'undefined') {
+        const routeData = TripRouteMap.getRouteData();
+        if (routeData && routeData.start_point && routeData.finish_point) {
+            // Меняем точки местами
+            const tempPoint = routeData.start_point;
+            routeData.start_point = routeData.finish_point;
+            routeData.finish_point = tempPoint;
+            
+            // Обновляем отображение
+            TripRouteMap.updateRouteInfo?.();
+            console.log('🗺️ Данные маршрута на карте обновлены');
+        }
+    }
+}
+
+/**
+ * Показать маршрут на карте
+ */
+function showRouteOnMap() {
+    console.log('🗺️ Показываем маршрут на карте...');
+    
+    const fromAddress = document.getElementById('trip-from')?.value.trim();
+    const toAddress = document.getElementById('trip-to')?.value.trim();
+    
+    // Проверяем заполнены ли поля
+    if (!fromAddress || !toAddress) {
+        showNotification('Заполните оба поля: "Откуда" и "Куда"', 'warning');
+        return;
+    }
+    
+    // Показываем контейнер карты
+    const mapContainer = document.getElementById('route-map-container');
+    if (mapContainer) {
+        mapContainer.style.display = 'block';
+    }
+    
+    // Если модуль карт не загружен
+    if (typeof TripRouteMap === 'undefined') {
+        console.error('❌ Модуль TripRouteMap не загружен');
+        showNotification('Карта не загружена. Обновите страницу.', 'error');
+        return;
+    }
+    
+    // Инициализируем карту если нужно
+    if (typeof TripRouteMap.init === 'function') {
+        TripRouteMap.init().then(() => {
+            console.log('✅ Карта инициализирована, ищем адреса...');
+            
+            // Ищем первый адрес
+            TripRouteMap.searchAndSetPoint(fromAddress, 'start');
+            
+            // Ищем второй адрес с задержкой
+            setTimeout(() => {
+                TripRouteMap.searchAndSetPoint(toAddress, 'finish');
+                showNotification('Маршрут построен на карте', 'success');
+            }, 1000);
+            
+        }).catch(err => {
+            console.error('❌ Ошибка инициализации карты:', err);
+            showNotification('Ошибка загрузки карты', 'error');
+        });
+    } else {
+        // Карта уже инициализирована
+        TripRouteMap.searchAndSetPoint(fromAddress, 'start');
+        
+        setTimeout(() => {
+            TripRouteMap.searchAndSetPoint(toAddress, 'finish');
+            showNotification('Маршрут построен на карте', 'success');
+        }, 1000);
+    }
+}
+
+/**
+ * Скрыть карту
+ */
+function hideRouteMap() {
+    console.log('👁️ Скрываем карту');
+    
+    const container = document.getElementById('route-map-container');
+    if (container) {
+        container.style.display = 'none';
+        showNotification('Карта скрыта', 'info');
+    }
+}
+
+/**
+ * Обновить время прибытия на основе данных маршрута
+ */
+function updateArrivalTimeFromMap() {
+    const dateInput = document.getElementById('trip-date');
+    const timeInput = document.getElementById('trip-time');
+    
+    if (!dateInput?.value || !timeInput?.value) {
+        return;
+    }
+    
+    if (typeof TripRouteMap === 'undefined') {
+        return;
+    }
+    
+    const routeData = TripRouteMap.getRouteData();
+    if (!routeData?.duration) {
+        return;
+    }
+    
+    try {
+        // Время отправления
+        const departureTime = new Date(dateInput.value + 'T' + timeInput.value);
+        
+        // Добавляем время в пути (минуты → миллисекунды)
+        const arrivalTime = new Date(departureTime.getTime() + (routeData.duration * 60000));
+        
+        // Форматируем время
+        const hours = arrivalTime.getHours().toString().padStart(2, '0');
+        const minutes = arrivalTime.getMinutes().toString().padStart(2, '0');
+        
+        // Обновляем UI
+        const arrivalTimeEl = document.getElementById('arrival-time');
+        const container = document.getElementById('arrival-time-container');
+        
+        if (arrivalTimeEl) arrivalTimeEl.textContent = `${hours}:${minutes}`;
+        if (container) container.style.display = 'block';
+        
+        console.log('⏰ Расчётное время прибытия:', `${hours}:${minutes}`);
+        
+    } catch (error) {
+        console.error('❌ Ошибка расчёта времени прибытия:', error);
+    }
+}
+
+// Сделать функции глобальными
+window.swapRoutePoints = swapRoutePoints;
+window.showRouteOnMap = showRouteOnMap;
+window.hideRouteMap = hideRouteMap;
+window.updateArrivalTimeFromMap = updateArrivalTimeFromMap;
 
 window.testAutocompleteNow = function() {
     console.log('=== ТЕСТ АВТОДОПОЛНЕНИЯ СЕЙЧАС ===');
