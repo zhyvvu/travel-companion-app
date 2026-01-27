@@ -2218,7 +2218,7 @@ async function createTripWithMap() {
             seats_available: seatsCount,                      // Соответствует trip_data.seats_available
             price: priceValue,                                // Соответствует trip_data.price
             description: comment || "",                       // Соответствует trip_data.description
-            route_data: JSON.stringify(routeData),             // Твой бэкенд пишет trip_data.route_data
+            route_data: routeData,             // Твой бэкенд пишет trip_data.route_data
             route_duration: routeData.duration || 0           // Твой бэкенд пишет trip_data.route_duration
         };
         
