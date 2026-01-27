@@ -1122,110 +1122,68 @@ function initSearchForm() {
 // =============== СОЗДАНИЕ ПОЕЗДКИ ===============
 
 async function createTrip() {
-    console.log('🚗 Создание поездки...');
-    
     if (!currentUser) {
-        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+        alert("Необходимо авторизоваться");
         return;
     }
-    
+
+    const fromCity = document.getElementById('from-input').value;
+    const toCity = document.getElementById('to-input').value;
+    const date = document.getElementById('departure-date').value;
+    const time = document.getElementById('departure-time').value;
+    const seats = document.getElementById('seats-input').value;
+    const price = document.getElementById('price-input').value;
+    const description = document.getElementById('description-input').value;
+
+    if (!fromCity || !toCity || !date || !time || !price) {
+        alert("Пожалуйста, заполните все обязательные поля");
+        return;
+    }
+
+    const departureDateTime = new Date(`${date}T${time}`);
+    const isoDeparture = departureDateTime.toISOString();
+
+    // Получаем данные из карты для извлечения длительности (duration)
+    const routeData = window.TripRouteMap ? window.TripRouteMap.getRouteData() : null;
+    const durationMinutes = (routeData && routeData.duration) ? Math.round(routeData.duration) : 0;
+
+    const tripData = {
+        from_city: fromCity,
+        to_city: toCity,
+        departure_time: isoDeparture,
+        route_duration: durationMinutes, // Добавили передачу длительности
+        seats_available: parseInt(seats),
+        price: parseFloat(price),
+        description: description,
+        route_data: routeData
+    };
+
+    console.log("Отправка данных поездки:", tripData);
+
     try {
-        // Собираем данные из формы
-        const start_address = document.getElementById('trip-from').value.trim();
-        const finish_address = document.getElementById('trip-to').value.trim();
-        const dateStr = document.getElementById('trip-date').value;
-        const departure_time = document.getElementById('trip-time').value;
-        const available_seats = parseInt(document.getElementById('seats-count').value);
-        const price_per_seat = parseFloat(document.getElementById('trip-price').value);
-        const comment = document.getElementById('trip-comment').value.trim();
-        
-        // Получаем данные маршрута с карты
-        let route_data = null;
-        if (typeof TripRouteMap !== 'undefined') {
-            route_data = TripRouteMap.getRouteData();
-            
-            // Если на карте есть точки, используем их координаты
-            if (route_data.start_point && route_data.finish_point) {
-                console.log('✅ Используем данные с карты:', {
-                    distance: route_data.distance,
-                    duration: route_data.duration
-                });
-            }
-        }
-        
-        // Валидация
-        if (!start_address || !finish_address || !dateStr || !departure_time || !price_per_seat || !available_seats) {
-            showNotification('Заполните все обязательные поля', 'warning');
-            return;
-        }
-        
-        // Расчётное время прибытия (для автоматического изменения статуса)
-        let estimated_arrival = null;
-        if (route_data?.duration) {
-            try {
-                const departureTime = new Date(dateStr + 'T' + departure_time);
-                const arrivalTime = new Date(departureTime.getTime() + (route_data.duration * 60000));
-                estimated_arrival = arrivalTime.toISOString();
-                console.log('⏰ Расчётное время прибытия:', estimated_arrival);
-            } catch (error) {
-                console.error('Ошибка расчёта времени прибытия:', error);
-            }
-        }
-        
-        // Создаем объект для отправки
-        const departure_date = new Date(dateStr + 'T' + departure_time + 'Z');
-        
-        const tripData = {
-            departure_date: departure_date.toISOString(),
-            departure_time: departure_time,
-            start_address: start_address,
-            finish_address: finish_address,
-            available_seats: available_seats,
-            price_per_seat: price_per_seat,
-            comment: comment || null
-        };
-        
-        // Добавляем данные карты, если есть
-        if (route_data) {
-            tripData.route_data = route_data;
-        }
-        
-        // Добавляем расчётное время прибытия
-        if (estimated_arrival) {
-            tripData.estimated_arrival = estimated_arrival;
-        }
-        
-        console.log('📤 Отправка данных поездки:', tripData);
-        
-        const response = await fetch(
-            `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(tripData)
-            }
-        );
-        
+        const response = await fetch(`${API_BASE_URL}/api/trips?user_id=${currentUser.id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(tripData)
+        });
+
         const result = await response.json();
-        console.log('Ответ создания поездки:', result);
-        
-        if (response.ok && result.success) {
-            showNotification('✅ Поездка успешно создана!', 'success');
-            
-            // Очищаем форму
-            clearCreateTripForm();
-            
-            // Возвращаем на главную
-            setTimeout(() => showScreen('welcome'), 1500);
+
+        if (result.success) {
+            alert("Поездка успешно создана!");
+            showSection('search');
+            // Очистка формы
+            document.getElementById('from-input').value = '';
+            document.getElementById('to-input').value = '';
+            if (window.TripRouteMap) window.TripRouteMap.clearRoute();
         } else {
-            showNotification(result.detail || 'Ошибка создания поездки', 'error');
+            alert("Ошибка при создании: " + (result.detail || "Неизвестная ошибка"));
         }
     } catch (error) {
-        console.error('❌ Ошибка создания поездки:', error);
-        showNotification('Ошибка при создании поездки', 'error');
+        console.error("Ошибка сети:", error);
+        alert("Ошибка при создании поездки. Проверьте соединение.");
     }
 }
 
