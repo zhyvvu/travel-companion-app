@@ -2215,7 +2215,7 @@ async function createTripWithMap() {
             from_city: routeData.start_point.address || "Точка на карте",
             to_city: routeData.finish_point.address || "Точка на карте",
             // Отправляем дату в простом формате ISO без миллисекунд
-            departure_time: departure_date_obj.toISOString().split('.')[0] + 'Z', 
+            departure_time: dateStr + 'T' + departure_time, 
             seats_available: seatsCount,
             price: priceValue,
             description: comment || "",
