@@ -557,16 +557,23 @@ function isMapInitialized() {
 // ====================== ПУБЛИЧНЫЙ API МОДУЛЯ ======================
 
 // Экспортируем функции, которые будут доступны из других файлов
+// Экспортируем функции наружу под именем YandexMapsModule
 window.YandexMapsModule = {
     initMap: initYandexMap,
-    setStartPoint: setStartPoint,
-    setFinishPoint: setFinishPoint,
-    clearRoute: clearRoute,
-    getRouteData: getRouteData,
-    isRouteReady: isRouteReady,
-    isMapInitialized: isMapInitialized,
-    setCurrentMode: setCurrentMode,
-    performSearch: performSearch
+    setCurrentMode: function(mode) {
+        currentMode = mode;
+        console.log('📍 Режим карты изменен на:', mode);
+    },
+    getRouteData: function() {
+        return routeData;
+    },
+    clearRoute: function() {
+        if (map) {
+            map.geoObjects.removeAll();
+            resetRouteData();
+        }
+    }
 };
 
 console.log('✅ Модуль Яндекс.Карт загружен');
+

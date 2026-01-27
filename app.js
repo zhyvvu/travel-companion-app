@@ -289,7 +289,7 @@ function showScreen(screenId) {
     
     // Сбрасываем флаг инициализации автодополнения при смене экрана
     if (typeof autocompleteInitialized !== 'undefined') {
-        aautocompleteInitializedFlag = false;
+        autocompleteInitializedFlag = false;
     }
     
     // Скрываем все экраны
