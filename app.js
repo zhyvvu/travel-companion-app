@@ -2187,7 +2187,7 @@ async function createTripWithMap() {
     
     try {
         // Получить данные маршрута
-        const routeData = getRouteData();
+        const routeData = window.YandexMapsModule.getRouteData();
         
         if (!routeData.start_point || !routeData.finish_point) {
             showNotification('Выберите точки начала и конца маршрута на карте', 'warning');
@@ -2221,10 +2221,12 @@ async function createTripWithMap() {
         };
         
         console.log('📤 Отправка данных поездки с картой:', tripData);
+
+        console.log('JSON СТРУКТУРА:', JSON.stringify(tripData));
         
         // Отправить на сервер
         const response = await fetch(
-            `${API_BASE_URL}/api/trips/create/?telegram_id=${currentUser.telegram_id}`,
+            `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
             {
                 method: 'POST',
                 headers: {
