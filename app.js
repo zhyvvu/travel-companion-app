@@ -2224,7 +2224,7 @@ async function createTripWithMap() {
         
         // Отправить на сервер
         const response = await fetch(
-            `${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`,
+            `${API_BASE_URL}/api/trips/create/?telegram_id=${currentUser.telegram_id}`,
             {
                 method: 'POST',
                 headers: {
