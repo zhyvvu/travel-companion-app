@@ -2214,12 +2214,14 @@ async function createTripWithMap() {
         const tripData = {
             from_city: routeData.start_point.address || "Точка на карте",
             to_city: routeData.finish_point.address || "Точка на карте",
-            departure_time: departure_date_obj.toISOString(), // Бэкенд парсит это в departure_date
-            seats_available: seatsCount,                      // Соответствует trip_data.seats_available
-            price: priceValue,                                // Соответствует trip_data.price
-            description: comment || "",                       // Соответствует trip_data.description
-            route_data: routeData,             // Твой бэкенд пишет trip_data.route_data
-            route_duration: routeData.duration || 0           // Твой бэкенд пишет trip_data.route_duration
+            // Отправляем дату в простом формате ISO без миллисекунд
+            departure_time: departure_date_obj.toISOString().split('.')[0] + 'Z', 
+            seats_available: seatsCount,
+            price: priceValue,
+            description: comment || "",
+            // Передаем объект как есть (БЕЗ JSON.stringify)
+            route_data: routeData, 
+            route_duration: Math.round(routeData.duration || 0) 
         };
         
         console.log('📤 Отправляемый JSON:', tripData);
