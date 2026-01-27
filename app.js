@@ -1143,29 +1143,32 @@ async function createTrip() {
     const departureDateTime = new Date(`${date}T${time}`);
     const isoDeparture = departureDateTime.toISOString();
 
-    // Получаем данные из карты для извлечения длительности (duration)
-    const routeData = window.TripRouteMap ? window.TripRouteMap.getRouteData() : null;
-    const durationMinutes = (routeData && routeData.duration) ? Math.round(routeData.duration) : 0;
+    // Безопасно получаем длительность из модуля карты
+    let durationMinutes = 0;
+    let routeData = null;
+
+    if (window.TripRouteMap && typeof window.TripRouteMap.getRouteData === 'function') {
+        routeData = window.TripRouteMap.getRouteData();
+        if (routeData && routeData.duration) {
+            durationMinutes = Math.round(routeData.duration);
+        }
+    }
 
     const tripData = {
         from_city: fromCity,
         to_city: toCity,
         departure_time: isoDeparture,
-        route_duration: durationMinutes, // Добавили передачу длительности
+        route_duration: durationMinutes, // Теперь отправляем реальное время
         seats_available: parseInt(seats),
         price: parseFloat(price),
         description: description,
         route_data: routeData
     };
 
-    console.log("Отправка данных поездки:", tripData);
-
     try {
         const response = await fetch(`${API_BASE_URL}/api/trips?user_id=${currentUser.id}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(tripData)
         });
 
@@ -1174,7 +1177,7 @@ async function createTrip() {
         if (result.success) {
             alert("Поездка успешно создана!");
             showSection('search');
-            // Очистка формы
+            // Очистка
             document.getElementById('from-input').value = '';
             document.getElementById('to-input').value = '';
             if (window.TripRouteMap) window.TripRouteMap.clearRoute();
@@ -1183,7 +1186,7 @@ async function createTrip() {
         }
     } catch (error) {
         console.error("Ошибка сети:", error);
-        alert("Ошибка при создании поездки. Проверьте соединение.");
+        alert("Ошибка при создании поездки.");
     }
 }
 
