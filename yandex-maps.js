@@ -558,8 +558,13 @@ function isMapInitialized() {
 
 // Экспортируем функции, которые будут доступны из других файлов
 // Экспортируем функции наружу под именем YandexMapsModule
+// В самом конце файла yandex-maps.js
 window.YandexMapsModule = {
     initMap: initYandexMap,
+    // Добавляем вот эту функцию:
+    isMapInitialized: function() {
+        return map !== null; 
+    },
     setCurrentMode: function(mode) {
         currentMode = mode;
         console.log('📍 Режим карты изменен на:', mode);
@@ -570,7 +575,7 @@ window.YandexMapsModule = {
     clearRoute: function() {
         if (map) {
             map.geoObjects.removeAll();
-            resetRouteData();
+            if (typeof resetRouteData === 'function') resetRouteData();
         }
     }
 };
