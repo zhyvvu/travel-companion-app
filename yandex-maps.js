@@ -48,10 +48,24 @@ function initYandexMap() {
                     controls: ['zoomControl', 'geolocationControl', 'fullscreenControl']
                 });
 
+                // Стандартные инициализации
                 initSearchControl();
                 initMapEvents();
                 initMapControls();
                 resetRouteData();
+
+                // --- НОВАЯ ЧАСТЬ: Привязка автоподсказок ---
+                
+                // 1. Для поиска поездок
+                bindCustomSuggest('from-input', 'suggestions-from');
+                bindCustomSuggest('to-input', 'suggestions-to');
+                
+                // 2. Для карты создания поездки
+                bindCustomSuggest('map-search-input', 'map-suggestions');
+                
+                // 3. Для обычной формы создания (если нужно)
+                bindCustomSuggest('trip-from', 'suggestions-trip-from');
+                bindCustomSuggest('trip-to', 'suggestions-trip-to');
 
                 resolve(map);
             } catch (error) {
@@ -59,6 +73,61 @@ function initYandexMap() {
                 reject(error);
             }
         });
+    });
+}
+
+// Эту функцию просто добавь ниже в этом же файле (если еще не добавил)
+function bindCustomSuggest(inputId, suggestionsId) {
+    const input = document.getElementById(inputId);
+    const container = document.getElementById(suggestionsId);
+    let timeout = null;
+
+    if (!input || !container) return;
+
+    input.addEventListener('input', () => {
+        clearTimeout(timeout);
+        const query = input.value.trim();
+
+        if (query.length < 3) {
+            container.style.display = 'none';
+            return;
+        }
+
+        timeout = setTimeout(() => {
+            ymaps.geocode(query, { results: 5 }).then(res => {
+                container.innerHTML = '';
+                res.geoObjects.each(obj => {
+                    const address = obj.getAddressLine();
+                    // Сохраняем координаты, если они понадобятся для поиска
+                    const coords = obj.geometry.getCoordinates();
+                    
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerHTML = `<i class="fas fa-map-marker-alt"></i> <span>${address}</span>`;
+                    
+                    div.onclick = () => {
+                        input.value = address;
+                        container.style.display = 'none';
+                        
+                        // Если это поле на карте, вызываем установку точки
+                        if (inputId === 'map-search-input') {
+                            if (window.currentMode === 'start') setStartPoint(coords, address);
+                            else setFinishPoint(coords, address);
+                            map.setCenter(coords, 14);
+                        }
+                    };
+                    container.appendChild(div);
+                });
+                container.style.display = 'block';
+            });
+        }, 400);
+    });
+
+    // Скрываем список при клике вне поля
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !container.contains(e.target)) {
+            container.style.display = 'none';
+        }
     });
 }
 
