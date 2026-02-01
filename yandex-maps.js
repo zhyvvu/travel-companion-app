@@ -147,7 +147,6 @@ function bindCustomSuggest(inputId, suggestionsId) {
         }
     });
 }
-
 let suggestTimeout = null;
 
 function initSearchControl() {
