@@ -96,8 +96,9 @@ function initSearchControl() {
 
 function fetchCustomSuggestions(query) {
     const suggestionsContainer = document.getElementById('map-suggestions');
+    // Находим инпут прямо здесь, чтобы он был доступен везде ниже
+    const searchInput = document.getElementById('map-search-input'); 
     
-    // Используем геокодер как провайдер подсказок
     ymaps.geocode(query, { results: 5 }).then(res => {
         suggestionsContainer.innerHTML = '';
         const items = res.geoObjects;
@@ -115,26 +116,35 @@ function fetchCustomSuggestions(query) {
             div.className = 'suggestion-item';
             div.innerHTML = `<i class="fas fa-map-marker-alt"></i> <span>${address}</span>`;
             
-            div.onclick = () => {
+            // Исправленный обработчик клика
+            div.onclick = function() {
+                // Теперь searchInput точно определен, так как мы нашли его выше
                 searchInput.value = address;
                 suggestionsContainer.style.display = 'none';
                 
-                // Передаем координаты в функции, которые рисуют метки на карте
-                if (currentMode === 'start') {
-                    setStartPoint(coords, address);
+                console.log('📍 Выбран адрес:', address, 'Координаты:', coords);
+
+                // Вызываем установку точек (проверь, что эти функции объявлены в твоем коде)
+                if (typeof setStartPoint === 'function' && typeof setFinishPoint === 'function') {
+                    if (window.currentMode === 'start') {
+                        setStartPoint(coords, address);
+                    } else {
+                        setFinishPoint(coords, address);
+                    }
                 } else {
-                    setFinishPoint(coords, address);
+                    console.error('❌ Функции setStartPoint или setFinishPoint не найдены!');
                 }
                 
-                map.setCenter(coords, 14); // Зуммируем карту на выбранное место
+                // Центрируем карту на выбранном месте
+                if (window.map) {
+                    window.map.setCenter(coords, 14);
+                }
             };
             
             suggestionsContainer.appendChild(div);
         });
 
         suggestionsContainer.style.display = 'block';
-    }).catch(err => {
-        console.error('Ошибка геокодирования для подсказок:', err);
     });
 }
 
