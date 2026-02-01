@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Travel Companion</title>
     
-    <!-- 1. Telegram WebApp SDK (ПЕРВЫЙ И ЕДИНСТВЕННЫЙ скрипт в head) -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- 2. Стили -->
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <!-- Шапка -->
         <header class="header">
             <div class="logo">
                 <i class="fas fa-car"></i>
@@ -25,9 +22,7 @@
             </div>
         </header>
 
-        <!-- Основной контент -->
         <main>
-            <!-- Экран приветствия -->
             <section class="welcome-screen active" id="welcome-screen">
                 <div class="welcome-card">
                     <h2 id="welcome-title">👋 Добро пожаловать!</h2>
@@ -59,7 +54,6 @@
                 </div>
             </section>
 
-            <!-- Экран поиска поездок -->
             <section class="screen" id="find-trip" style="display: none;">
                 <div class="screen-header">
                     <button class="back-btn" onclick="showScreen('welcome')">
@@ -69,13 +63,13 @@
                 </div>
                 
                 <div class="search-form">
-                    <div class="input-group">
+                    <div class="input-group" style="position: relative;">
                         <i class="fas fa-map-marker-alt"></i>
                         <input type="text" id="from-input" placeholder="Откуда" autocomplete="off">
                         <div id="suggestions-from" class="suggestions-container"></div>
                     </div>
                     
-                    <div class="input-group">
+                    <div class="input-group" style="position: relative;">
                         <i class="fas fa-flag-checkered"></i>
                         <input type="text" id="to-input" placeholder="Куда" autocomplete="off">
                         <div id="suggestions-to" class="suggestions-container"></div>
@@ -112,7 +106,6 @@
                 </div>
             </section>
 
-            <!-- Экран создания поездки -->
             <section class="screen" id="create-trip" style="display: none;">
                 <div class="screen-header">
                     <button class="back-btn" onclick="showScreen('welcome')">
@@ -122,78 +115,26 @@
                 </div>
                 
                 <div class="trip-form">
-                    <!-- Секция маршрута -->
                     <div class="form-section">
                         <h3><i class="fas fa-route"></i> Маршрут</h3>
                         
-                        <!-- Поле "Откуда" -->
-                        <div class="input-group">
+                        <div class="input-group" style="position: relative;">
                             <i class="fas fa-map-marker-alt"></i>
-                            <input type="text" id="trip-from" 
-                                placeholder="Откуда (город или точный адрес) *" 
-                                required autocomplete="off">
+                            <input type="text" id="trip-from" placeholder="Откуда *" required autocomplete="off">
+                            <div id="suggestions-trip-from" class="suggestions-container"></div>
                         </div>
                         
-                        <!-- Поле "Куда" -->
-                        <div class="input-group">
+                        <div class="input-group" style="position: relative;">
                             <i class="fas fa-flag-checkered"></i>
-                            <input type="text" id="trip-to" 
-                                placeholder="Куда (город или точный адрес) *" 
-                                required autocomplete="off">
+                            <input type="text" id="trip-to" placeholder="Куда *" required autocomplete="off">
+                            <div id="suggestions-trip-to" class="suggestions-container"></div>
                         </div>
                         
-                        <!-- Кнопка поменять местами -->
-                        <button type="button" id="btn-swap-route" class="btn-small" 
-                                style="margin: 10px 0; width: 100%;"
-                                onclick="swapRoutePoints()">
-                            <i class="fas fa-exchange-alt"></i> Поменять местами "Откуда" и "Куда"
+                        <button type="button" class="btn-small" style="width: 100%; margin: 10px 0;" onclick="swapRoutePoints()">
+                            <i class="fas fa-exchange-alt"></i> Поменять местами
                         </button>
-                        
-                        <!-- Кнопка показать на карте -->
-                        <button type="button" id="btn-show-route-on-map" class="btn-secondary" 
-                                style="width: 100%; margin-top: 5px;"
-                                onclick="showRouteOnMap()">
-                            <i class="fas fa-map-marked-alt"></i> Показать маршрут на карте
-                        </button>
-                        
-                        <!-- Блок карты (изначально скрыт) -->
-                        <div id="route-map-container" style="display: none; margin-top: 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <h4><i class="fas fa-map"></i> Карта маршрута</h4>
-                                <button type="button" id="btn-hide-map" class="btn-small" onclick="hideRouteMap()">
-                                    <i class="fas fa-times"></i> Скрыть карту
-                                </button>
-                            </div>
-                            
-                            <!-- Контейнер карты -->
-                            <div id="route-map" style="width: 100%; height: 300px; border-radius: 8px; border: 1px solid #ddd;"></div>
-                            
-                            <!-- Информация о маршруте -->
-                            <div id="route-info" style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; display: none;">
-                                <h5 style="margin: 0 0 10px 0;"><i class="fas fa-info-circle"></i> Информация о маршруте</h5>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                    <div>
-                                        <small>Расстояние</small>
-                                        <div><strong id="route-distance">0 км</strong></div>
-                                    </div>
-                                    <div>
-                                        <small>Время в пути</small>
-                                        <div><strong id="route-duration">0 мин</strong></div>
-                                    </div>
-                                    <div>
-                                        <small>Начало</small>
-                                        <div id="start-address" style="font-size: 12px; color: #666;">Не выбрано</div>
-                                    </div>
-                                    <div>
-                                        <small>Конец</small>
-                                        <div id="finish-address" style="font-size: 12px; color: #666;">Не выбрано</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                     
-                    <!-- Дата и время -->
                     <div class="form-section">
                         <h3><i class="fas fa-clock"></i> Дата и время</h3>
                         <div class="input-row">
@@ -206,274 +147,89 @@
                                 <input type="time" id="trip-time" required>
                             </div>
                         </div>
-                        
-                        <!-- Расчётное время прибытия -->
-                        <div id="arrival-time-container" style="margin-top: 10px; display: none;">
-                            <div style="display: flex; align-items: center; background: #e3f2fd; padding: 10px; border-radius: 6px;">
-                                <i class="fas fa-hourglass-end" style="margin-right: 10px; color: #1976d2;"></i>
-                                <div>
-                                    <small>Расчётное время прибытия</small>
-                                    <div><strong id="arrival-time">--:--</strong></div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                     
-                    <!-- Автомобиль и цена -->
                     <div class="form-section">
                         <h3><i class="fas fa-car"></i> Автомобиль</h3>
                         <div class="input-group">
                             <i class="fas fa-car-side"></i>
-                            <input type="text" id="car-model" placeholder="Модель авто *" style="display: block;">
-                            <select id="car-model-select" style="display: none; width: 100%; border: none; background: none; font-size: 16px; color: var(--dark-color); outline: none;">
-                                <option value="">Выберите автомобиль</option>
-                            </select>
+                            <input type="text" id="car-model" placeholder="Модель авто *">
                         </div>
                         <div class="input-row">
                             <div class="input-group half">
                                 <i class="fas fa-users"></i>
                                 <select id="seats-count" required>
-                                    <option value="">Количество мест *</option>
-                                    <option value="1">1 место</option>
-                                    <option value="2">2 места</option>
                                     <option value="3" selected>3 места</option>
                                     <option value="4">4 места</option>
-                                    <option value="5">5 мест</option>
                                 </select>
                             </div>
                             <div class="input-group half">
                                 <i class="fas fa-money-bill-wave"></i>
-                                <input type="number" id="trip-price" placeholder="Цена за место *" required min="1">
+                                <input type="number" id="trip-price" placeholder="Цена *" required>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Комментарий -->
-                    <div class="form-section">
-                        <h3><i class="fas fa-comment"></i> Комментарий (необязательно)</h3>
-                        <div class="input-group">
-                            <i class="fas fa-comment-alt"></i>
-                            <input type="text" id="trip-comment" placeholder="Дополнительная информация для пассажиров">
-                        </div>
-                    </div>
-                    
-                    <!-- Кнопка отправки -->
+
                     <button class="submit-btn" onclick="createTrip()">
-                        <i class="fas fa-paper-plane"></i> Опубликовать поездку
+                        <i class="fas fa-paper-plane"></i> Опубликовать
                     </button>
                 </div>
             </section>
 
-            <!-- Экран профиля -->
-            <section class="screen" id="profile" style="display: none;">
+            <section class="screen" id="create-trip-map" style="display: none;">
                 <div class="screen-header">
                     <button class="back-btn" onclick="showScreen('welcome')">
                         <i class="fas fa-arrow-left"></i>
                     </button>
-                    <h2>👤 Мой профиль</h2>
-                </div>
-                
-                <div class="profile-container" id="profile-data">
-                    <div class="loader"></div>
-                </div>
-            </section>
-            
-            <!-- Новая форма создания с картой -->
-            <section class="screen" id="create-trip-map" style="display: none;">
-                <div class="screen-header">
-                    <button class="back-btn" onclick="goBackToCreateForm()">
-                        <i class="fas fa-arrow-left"></i>
-                    </button>
-                    <h2>🗺️ Создать поездку на карте</h2>
+                    <h2>🗺️ На карте</h2>
                 </div>
                 
                 <div class="trip-form-map">
                     <div class="map-section">
                         <div class="map-search">
                             <div class="input-group" style="flex: 1; margin-bottom: 0; position: relative;">
-                                <input type="text" id="map-search-input" placeholder="Найти адрес на карте..." autocomplete="off">
+                                <input type="text" id="map-search-input" placeholder="Найти адрес..." autocomplete="off">
                                 <div id="map-suggestions" class="suggestions-container"></div>
                             </div>
                             <button id="map-search-btn"><i class="fas fa-search"></i></button>
                         </div>
 
-                        <div id="yandex-map" style="width: 100%; height: 400px; border-radius: 8px;"></div>
+                        <div id="yandex-map" style="width: 100%; height: 350px; border-radius: 8px;"></div>
                         
                         <div class="map-controls">
-                            <button id="btn-set-start" class="map-btn active">
-                                <i class="fas fa-map-marker-alt"></i> Откуда
-                            </button>
-                            <button id="btn-set-finish" class="map-btn">
-                                <i class="fas fa-flag-checkered"></i> Куда
-                            </button>
-                            <button id="btn-clear-route" class="map-btn">
-                                <i class="fas fa-trash"></i> Очистить
-                            </button>
-                        </div>
-                        
-                        <div class="route-info" id="route-info-display" style="display: none;">
-                            <h4>📊 Информация о маршруте:</h4>
-                            <p>Расстояние: <span id="route-distance-val">0</span> км</p>
-                            <p>Время в пути: <span id="route-duration-val">0</span> мин</p>
-                            <p>Начало: <span id="start-address-val">Не выбрано</span></p>
-                            <p>Конец: <span id="finish-address-val">Не выбрано</span></p>
+                            <button id="btn-set-start" class="map-btn active"><i class="fas fa-map-marker-alt"></i> Откуда</button>
+                            <button id="btn-set-finish" class="map-btn"><i class="fas fa-flag-checkered"></i> Куда</button>
                         </div>
                     </div>
                     
-                    <div class="trip-details-section">
-                        <h3><i class="fas fa-info-circle"></i> Детали поездки</h3>
-                        
-                        <div class="input-group">
-                            <i class="fas fa-calendar"></i>
-                            <input type="date" id="trip-date-map">
-                        </div>
-                        
-                        <div class="input-group">
-                            <i class="fas fa-clock"></i>
-                            <input type="time" id="trip-time-map">
-                        </div>
-                        
-                        <div class="input-row">
-                            <div class="input-group half">
-                                <i class="fas fa-users"></i>
-                                <select id="seats-count-map">
-                                    <option value="1">1 место</option>
-                                    <option value="2">2 места</option>
-                                    <option value="3" selected>3 места</option>
-                                    <option value="4">4 места</option>
-                                    <option value="5">5 мест</option>
-                                </select>
-                            </div>
-                            <div class="input-group half">
-                                <i class="fas fa-money-bill-wave"></i>
-                                <input type="number" id="trip-price-map" placeholder="Цена">
-                            </div>
-                        </div>
-                        
-                        <div class="input-group">
-                            <i class="fas fa-car-side"></i>
-                            <select id="car-model-map">
-                                <option value="">Выберите автомобиль</option>
-                                </select>
-                        </div>
-                        
-                        <div class="input-group">
-                            <i class="fas fa-comment-alt"></i>
-                            <input type="text" id="trip-comment-map" placeholder="Комментарий">
-                        </div>
-                        
-                        <button class="submit-btn" id="submit-trip-map" onclick="createTripWithMap()">
-                            <i class="fas fa-paper-plane"></i> Опубликовать
-                        </button>
-                    </div>
+                    <button class="submit-btn" style="margin-top: 20px;" onclick="createTripWithMap()">
+                        <i class="fas fa-check"></i> Подтвердить маршрут
+                    </button>
                 </div>
+            </section>
+
+            <section class="screen" id="profile" style="display: none;">
+                <div class="screen-header">
+                    <button class="back-btn" onclick="showScreen('welcome')">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2>👤 Профиль</h2>
+                </div>
+                <div id="profile-data"></div>
             </section>
         </main>
 
-        <!-- Нижнее меню -->
         <nav class="bottom-nav">
-            <button class="nav-btn active" data-screen="welcome" onclick="showScreen('welcome')">
-                <i class="fas fa-home"></i>
-                <span>Главная</span>
-            </button>
-            <button class="nav-btn" data-screen="find-trip" onclick="showScreen('find-trip')">
-                <i class="fas fa-search"></i>
-                <span>Поиск</span>
-            </button>
-            <button class="nav-btn" data-screen="create-trip" onclick="showScreen('create-trip')">
-                <i class="fas fa-plus-circle"></i>
-                <span>Создать</span>
-            </button>
-            <button class="nav-btn" data-screen="profile" onclick="showScreen('profile')">
-                <i class="fas fa-user"></i>
-                <span>Профиль</span>
-            </button>
+            <button class="nav-btn active" onclick="showScreen('welcome')"><i class="fas fa-home"></i><span>Главная</span></button>
+            <button class="nav-btn" onclick="showScreen('find-trip')"><i class="fas fa-search"></i><span>Поиск</span></button>
+            <button class="nav-btn" onclick="showScreen('create-trip')"><i class="fas fa-plus-circle"></i><span>Создать</span></button>
+            <button class="nav-btn" onclick="showScreen('profile')"><i class="fas fa-user"></i><span>Профиль</span></button>
         </nav>
     </div>
 
-    <!-- Основное модальное окно -->
-    <div class="modal" id="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Детали поездки</h3>
-                <button class="close-btn" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="modal-body">
-                <p>Детали поездки загружаются...</p>
-                <div class="modal-actions">
-                    <button class="btn-primary" onclick="bookTrip(0)">
-                        <i class="fas fa-check"></i>
-                        Забронировать место
-                    </button>
-                    <button class="btn-secondary" onclick="closeModal()">
-                        <i class="fas fa-times"></i>
-                        Закрыть
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно для деталей поездки (будет создаваться динамически) -->
-    <div id="trip-details-modal" style="display: none;"></div>
-
-    <!-- Для отладки - временно -->
-    <div style="position: fixed; top: 10px; right: 10px; z-index: 9999; display: none;">
-        <button onclick="debugCreateTrip()" style="background: red; color: white; padding: 5px;">
-            DEBUG
-        </button>
-    </div>
-
-    <!-- 1. Яндекс.Карты ЗАГРУЖАЕМ ПОСЛЕДНИМИ (очень важно!) -->
-    
-    <script src="https://api-maps.yandex.ru/2.1/?apikey=46046ee2-ef66-47ae-b570-ca0680738074&lang=ru_RU&load=package.full&v=1.1" type="text/javascript"></script>
-    
-    <!-- 2. Основные скрипты приложения -->
-    
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=46046ee2-ef66-47ae-b570-ca0680738074&lang=ru_RU&load=package.full&v=1.1"></script>
     <script src="yandex-maps.js"></script>
     <script src="app.js"></script>    
     <script src="trip-route-map.js"></script>
-
-    
-    
-    <script>
-        // Функция для отладки
-        function debugCreateTrip() {
-            console.log('=== DEBUG INFO ===');
-            console.log('1. Current user:', window.currentUser);
-            console.log('2. API Base URL:', window.API_BASE_URL);
-            console.log('3. Telegram data:', window.Telegram?.WebApp?.initDataUnsafe);
-            
-            // Проверка формы
-            const formData = {
-                from: document.getElementById('trip-from')?.value,
-                to: document.getElementById('trip-to')?.value,
-                date: document.getElementById('trip-date')?.value,
-                time: document.getElementById('trip-time')?.value,
-                carModel: document.getElementById('car-model')?.value,
-                carSelect: document.getElementById('car-model-select')?.value,
-                seats: document.getElementById('seats-count')?.value,
-                price: document.getElementById('trip-price')?.value
-            };
-            console.log('4. Form data:', formData);
-            
-            // Тестовый запрос
-            testApiRequest();
-        }
-        
-        async function testApiRequest() {
-            try {
-                const response = await fetch(`${window.API_BASE_URL}/health`);
-                console.log('5. Health check:', response.status, await response.text());
-                
-                if (window.currentUser?.telegram_id) {
-                    const meResponse = await fetch(`${window.API_BASE_URL}/api/auth/me?telegram_id=${window.currentUser.telegram_id}`);
-                    console.log('6. Auth check:', meResponse.status, await meResponse.text());
-                }
-            } catch (error) {
-                console.log('7. Connection error:', error.message);
-            }
-        }
-    </script>
 </body>
 </html>

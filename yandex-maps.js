@@ -88,7 +88,7 @@ function bindCustomSuggest(inputId, suggestionsId) {
         clearTimeout(timeout);
         const query = input.value.trim();
 
-        if (query.length < 3) {
+        if (query.length < 2) { // Можно от 2 символов, так удобнее
             container.style.display = 'none';
             return;
         }
@@ -96,9 +96,15 @@ function bindCustomSuggest(inputId, suggestionsId) {
         timeout = setTimeout(() => {
             ymaps.geocode(query, { results: 5 }).then(res => {
                 container.innerHTML = '';
-                res.geoObjects.each(obj => {
+                const items = res.geoObjects;
+
+                if (items.getLength() === 0) {
+                    container.style.display = 'none';
+                    return;
+                }
+
+                items.each(obj => {
                     const address = obj.getAddressLine();
-                    // Сохраняем координаты, если они понадобятся для поиска
                     const coords = obj.geometry.getCoordinates();
                     
                     const div = document.createElement('div');
@@ -107,14 +113,26 @@ function bindCustomSuggest(inputId, suggestionsId) {
                     
                     div.onclick = () => {
                         input.value = address;
+                        // Сохраняем координаты в сам элемент инпута, чтобы потом их легко достать
+                        input.dataset.coords = coords.join(','); 
+                        
                         container.style.display = 'none';
                         
-                        // Если это поле на карте, вызываем установку точки
+                        // ЛОГИКА ДЛЯ КАРТЫ
                         if (inputId === 'map-search-input') {
-                            if (window.currentMode === 'start') setStartPoint(coords, address);
-                            else setFinishPoint(coords, address);
-                            map.setCenter(coords, 14);
+                            if (typeof setStartPoint === 'function' && typeof setFinishPoint === 'function') {
+                                if (window.currentMode === 'start') setStartPoint(coords, address);
+                                else setFinishPoint(coords, address);
+                            }
+                            if (window.map) {
+                                window.map.setCenter(coords, 14);
+                            }
                         }
+
+                        // ЛОГИКА ДЛЯ ПОИСКА (если нужно сразу после выбора запустить поиск)
+                        // if (inputId === 'from-input' || inputId === 'to-input') {
+                        //    ваша_функция_обновления_результатов();
+                        // }
                     };
                     container.appendChild(div);
                 });
@@ -123,7 +141,6 @@ function bindCustomSuggest(inputId, suggestionsId) {
         }, 400);
     });
 
-    // Скрываем список при клике вне поля
     document.addEventListener('click', (e) => {
         if (!input.contains(e.target) && !container.contains(e.target)) {
             container.style.display = 'none';
@@ -355,6 +372,22 @@ window.YandexMapsModule = {
         return map !== null;
     }
 };
+
+window.addEventListener('load', () => {
+    // Ждем секунду, чтобы API карт прогрузился
+    setTimeout(() => {
+        if (typeof ymaps !== 'undefined') {
+            ymaps.ready(() => {
+                // Привязываем ко всем существующим полям
+                bindCustomSuggest('from-input', 'suggestions-from');
+                bindCustomSuggest('to-input', 'suggestions-to');
+                bindCustomSuggest('trip-from', 'suggestions-trip-from');
+                bindCustomSuggest('trip-to', 'suggestions-trip-to');
+                bindCustomSuggest('map-search-input', 'map-suggestions');
+            });
+        }
+    }, 1000);
+});
 
 console.log('✅ YandexMapsModule успешно экспортирован');
 
