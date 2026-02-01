@@ -44,6 +44,24 @@ function showNotification(message, type = 'info') {
  * @returns {Promise} Промис, который разрешится когда карта будет готова
  */
 function initYandexMap() {
+    // 1. ПРЕДОХРАНИТЕЛЬ: если карта уже есть, просто выходим
+    if (map !== null) {
+        console.log('🗺️ Карта уже инициализирована, пропускаем создание.');
+        clearRoute(); // Очищаем старые точки, если они были
+        return;
+    }
+
+    const mapContainer = document.getElementById('map');
+    if (!mapContainer) return;
+
+    console.log('🗺️ Инициализация новой карты...');
+    
+    // 2. Создаем карту только один раз
+    map = new ymaps.Map("map", {
+        center: [45.035474, 38.975313], // Краснодар (или свой центр)
+        zoom: 12,
+        controls: ['zoomControl', 'geolocationControl']
+    });
     return new Promise((resolve, reject) => {
         // 1. Проверяем, загружена ли API Яндекс.Карт
         if (typeof ymaps === 'undefined') {
