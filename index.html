@@ -286,13 +286,16 @@
                 </div>
                 
                 <div class="trip-form-map">
-                    <!-- Блок карты -->
                     <div class="map-section">
                         <div class="map-search">
-                            <input type="text" id="map-search-input" placeholder="Найти адрес на карте...">
+                            <div class="input-group" style="flex: 1; margin-bottom: 0; position: relative;">
+                                <input type="text" id="map-search-input" placeholder="Найти адрес на карте..." autocomplete="off">
+                                <div id="map-suggestions" class="suggestions-container"></div>
+                            </div>
                             <button id="map-search-btn"><i class="fas fa-search"></i></button>
                         </div>
-                        <div id="yandex-map" style="width: 100%; height: 400px;"></div>
+
+                        <div id="yandex-map" style="width: 100%; height: 400px; border-radius: 8px;"></div>
                         
                         <div class="map-controls">
                             <button id="btn-set-start" class="map-btn active">
@@ -306,16 +309,15 @@
                             </button>
                         </div>
                         
-                        <div class="route-info" id="route-info" style="display: none;">
+                        <div class="route-info" id="route-info-display" style="display: none;">
                             <h4>📊 Информация о маршруте:</h4>
-                            <p>Расстояние: <span id="route-distance">0</span> км</p>
-                            <p>Время в пути: <span id="route-duration">0</span> мин</p>
-                            <p>Начало: <span id="start-address">Не выбрано</span></p>
-                            <p>Конец: <span id="finish-address">Не выбрано</span></p>
+                            <p>Расстояние: <span id="route-distance-val">0</span> км</p>
+                            <p>Время в пути: <span id="route-duration-val">0</span> мин</p>
+                            <p>Начало: <span id="start-address-val">Не выбрано</span></p>
+                            <p>Конец: <span id="finish-address-val">Не выбрано</span></p>
                         </div>
                     </div>
                     
-                    <!-- Форма деталей поездки -->
                     <div class="trip-details-section">
                         <h3><i class="fas fa-info-circle"></i> Детали поездки</h3>
                         
@@ -334,6 +336,7 @@
                                 <i class="fas fa-users"></i>
                                 <select id="seats-count-map">
                                     <option value="1">1 место</option>
+                                    <option value="2">2 места</option>
                                     <option value="3" selected>3 места</option>
                                     <option value="4">4 места</option>
                                     <option value="5">5 мест</option>
@@ -341,7 +344,7 @@
                             </div>
                             <div class="input-group half">
                                 <i class="fas fa-money-bill-wave"></i>
-                                <input type="number" id="trip-price-map" placeholder="Цена за место">
+                                <input type="number" id="trip-price-map" placeholder="Цена">
                             </div>
                         </div>
                         
@@ -349,16 +352,16 @@
                             <i class="fas fa-car-side"></i>
                             <select id="car-model-map">
                                 <option value="">Выберите автомобиль</option>
-                            </select>
+                                </select>
                         </div>
                         
                         <div class="input-group">
                             <i class="fas fa-comment-alt"></i>
-                            <input type="text" id="trip-comment-map" placeholder="Комментарий (необязательно)">
+                            <input type="text" id="trip-comment-map" placeholder="Комментарий">
                         </div>
                         
                         <button class="submit-btn" id="submit-trip-map" onclick="createTripWithMap()">
-                            <i class="fas fa-paper-plane"></i> Опубликовать поездку
+                            <i class="fas fa-paper-plane"></i> Опубликовать
                         </button>
                     </div>
                 </div>

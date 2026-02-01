@@ -62,47 +62,79 @@ function initYandexMap() {
     });
 }
 
+let suggestTimeout = null;
+
 function initSearchControl() {
     const searchInput = document.getElementById('map-search-input');
-    if (!searchInput || !map) return;
+    const suggestionsContainer = document.getElementById('map-suggestions');
+    if (!searchInput || !suggestionsContainer) return;
 
-    console.log('🔍 Запуск альтернативной системы подсказок...');
+    console.log('🚀 Запуск кастомной системы подсказок...');
 
-    // 1. Создаем стандартный поиск, но не добавляем его на карту визуально сразу
-    const searchControl = new ymaps.control.SearchControl({
-        options: {
-            provider: 'yandex#search',
-            noPlacemark: true, // не ставим метку автоматически
-            resultsPerPage: 5
+    // Закрывать подсказки при клике вне поля
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+            suggestionsContainer.style.display = 'none';
         }
     });
 
-    // Добавляем его на карту скрытым (чтобы он работал)
-    map.controls.add(searchControl, { float: 'none', visible: false });
+    searchInput.addEventListener('input', () => {
+        clearTimeout(suggestTimeout);
+        const query = searchInput.value.trim();
 
-    // 2. Слушаем ввод в твоем текстовом поле
-    searchInput.addEventListener('input', function() {
-        const query = searchInput.value;
-        if (query.length > 2) {
-            // Заставляем скрытый поиск искать подсказки
-            searchControl.search(query);
+        if (query.length < 3) {
+            suggestionsContainer.style.display = 'none';
+            return;
         }
-    });
 
-    // 3. Обработка выбора результата из поиска
-    searchControl.events.add('resultselect', function (e) {
-        const index = e.get('index');
-        searchControl.getResult(index).then(function (res) {
-            const coords = res.geometry.getCoordinates();
-            const address = res.properties.get('text');
+        // Задержка 400мс, чтобы не спамить запросами
+        suggestTimeout = setTimeout(() => {
+            fetchCustomSuggestions(query);
+        }, 400);
+    });
+}
+
+function fetchCustomSuggestions(query) {
+    const suggestionsContainer = document.getElementById('map-suggestions');
+    
+    // Используем геокодер как провайдер подсказок
+    ymaps.geocode(query, { results: 5 }).then(res => {
+        suggestionsContainer.innerHTML = '';
+        const items = res.geoObjects;
+
+        if (items.getLength() === 0) {
+            suggestionsContainer.style.display = 'none';
+            return;
+        }
+
+        items.each(obj => {
+            const address = obj.getAddressLine();
+            const coords = obj.geometry.getCoordinates();
             
-            searchInput.value = address; // Подставляем полный адрес в инпут
+            const div = document.createElement('div');
+            div.className = 'suggestion-item';
+            div.innerHTML = `<i class="fas fa-map-marker-alt"></i> <span>${address}</span>`;
             
-            if (currentMode === 'start') setStartPoint(coords, address);
-            else setFinishPoint(coords, address);
+            div.onclick = () => {
+                searchInput.value = address;
+                suggestionsContainer.style.display = 'none';
+                
+                // Передаем координаты в функции, которые рисуют метки на карте
+                if (currentMode === 'start') {
+                    setStartPoint(coords, address);
+                } else {
+                    setFinishPoint(coords, address);
+                }
+                
+                map.setCenter(coords, 14); // Зуммируем карту на выбранное место
+            };
             
-            map.setCenter(coords, 14);
+            suggestionsContainer.appendChild(div);
         });
+
+        suggestionsContainer.style.display = 'block';
+    }).catch(err => {
+        console.error('Ошибка геокодирования для подсказок:', err);
     });
 }
 
