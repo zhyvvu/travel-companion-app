@@ -240,5 +240,8 @@ window.YandexMapsModule = {
     getRouteData: () => routeData,
     clearRoute: clearRoute,
     setCurrentMode: (mode) => currentMode = mode
+    isMapInitialized: () => {
+        return map !== null;
+    }
 };
 
