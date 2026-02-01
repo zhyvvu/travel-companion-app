@@ -44,67 +44,54 @@ function showNotification(message, type = 'info') {
  * @returns {Promise} Промис, который разрешится когда карта будет готова
  */
 function initYandexMap() {
-    // 1. ПРЕДОХРАНИТЕЛЬ: если карта уже есть, просто выходим
+    // 1. ПРЕДОХРАНИТЕЛЬ: если карта уже есть
     if (map !== null) {
         console.log('🗺️ Карта уже инициализирована, пропускаем создание.');
-        clearRoute(); // Очищаем старые точки, если они были
-        return;
+        clearRoute(); // Очищаем старые точки
+        // Возвращаем успешно выполненный Promise, чтобы .then() в app.js не падал
+        return Promise.resolve(map);
     }
 
-    const mapContainer = document.getElementById('map');
-    if (!mapContainer) return;
-
-    console.log('🗺️ Инициализация новой карты...');
-    
-    // 2. Создаем карту только один раз
-    map = new ymaps.Map("map", {
-        center: [45.035474, 38.975313], // Краснодар (или свой центр)
-        zoom: 12,
-        controls: ['zoomControl', 'geolocationControl']
-    });
+    // 2. Возвращаем Promise для всей логики создания
     return new Promise((resolve, reject) => {
-        // 1. Проверяем, загружена ли API Яндекс.Карт
+        // Проверяем наличие API
         if (typeof ymaps === 'undefined') {
             console.error('❌ Яндекс.Карты API не загружен');
             showNotification('Карты временно недоступны', 'error');
-            reject(new Error('Yandex Maps API not loaded'));
-            return;
+            return reject(new Error('Yandex Maps API not loaded'));
         }
-        
-        // 2. Ждем готовности API - ВАЖНО: ymaps.options доступен только внутри ymaps.ready!
+
+        // Ждем готовности ymaps
         ymaps.ready(() => {
             try {
-                // 4. Проверяем существование контейнера
+                // ПРОВЕРЬ: какой ID у тебя в HTML? Я использую 'yandex-map'
                 const mapContainer = document.getElementById('yandex-map');
                 if (!mapContainer) {
                     console.error('❌ Контейнер карты не найден (id="yandex-map")');
-                    showNotification('Ошибка: контейнер карты не найден', 'error');
-                    reject(new Error('Map container not found'));
-                    return;
+                    return reject(new Error('Map container not found'));
                 }
-                
-                console.log('✅ Контейнер карты найден:', mapContainer);
-                
-                // 5. Создаем карту
+
+                console.log('🗺️ Инициализация новой карты...');
+
+                // Создаем карту
                 map = new ymaps.Map('yandex-map', {
-                    center: [55.76, 37.64], // Центр - Москва
-                    zoom: 10,
-                    controls: ['zoomControl', 'fullscreenControl']
+                    center: [45.035474, 38.975313], // Краснодар
+                    zoom: 12,
+                    controls: ['zoomControl', 'geolocationControl', 'fullscreenControl']
                 });
-                
+
                 console.log('✅ Яндекс.Карта инициализирована');
-                
-                // 6. Инициализируем остальные компоненты
-                initSearchControl();
-                initMapEvents();
-                initMapControls();
-                resetRouteData();
-                
+
+                // Инициализируем компоненты
+                // Убедись, что эти функции определены в этом же файле!
+                if (typeof initSearchControl === 'function') initSearchControl();
+                if (typeof initMapEvents === 'function') initMapEvents();
+                if (typeof initMapControls === 'function') initMapControls();
+                if (typeof resetRouteData === 'function') resetRouteData();
+
                 resolve(map);
-                
             } catch (error) {
-                console.error('❌ Ошибка инициализации карты:', error);
-                showNotification('Ошибка загрузки карты', 'error');
+                console.error('❌ Ошибка внутри ymaps.ready:', error);
                 reject(error);
             }
         });
