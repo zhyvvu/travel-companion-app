@@ -390,6 +390,29 @@ function updateNavButtons(activeScreen) {
 
 // =============== ПРОФИЛЬ ===============
 
+
+// В app.js, там где инициализируешь экран карты
+async function openMapScreen() {
+    console.log('🗺️ Инициализация карты на экране create-trip-map');
+    
+    // Ждем секунду или проверяем наличие модуля
+    if (!window.YandexMapsModule) {
+        console.error('❌ Модуль YandexMapsModule не найден! Пытаемся подождать...');
+        // Небольшая задержка на случай медленной загрузки
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    if (window.YandexMapsModule) {
+        try {
+            await window.YandexMapsModule.initMap();
+        } catch (err) {
+            console.error('Ошибка инициализации карты:', err);
+        }
+    } else {
+        showNotification('Критическая ошибка: модуль карт не загружен', 'error');
+    }
+}
+
 async function loadFullProfile() {
     console.log('👤 Loading full profile...');
     

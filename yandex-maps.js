@@ -245,3 +245,19 @@ window.YandexMapsModule = {
     }
 };
 
+// В самом конце yandex-maps.js
+if (typeof window.YandexMapsModule === 'undefined') {
+    window.YandexMapsModule = {
+        initMap: initYandexMap,
+        getRouteData: () => routeData,
+        clearRoute: clearRoute,
+        setCurrentMode: (mode) => {
+            currentMode = mode;
+        },
+        isMapInitialized: () => {
+            return map !== null;
+        }
+    };
+    console.log('✅ YandexMapsModule успешно экспортирован в window');
+}
+
