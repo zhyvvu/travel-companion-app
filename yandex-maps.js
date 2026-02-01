@@ -64,29 +64,46 @@ function initYandexMap() {
 
 function initSearchControl() {
     const searchInput = document.getElementById('map-search-input');
-    if (!searchInput) return;
+    if (!searchInput || !map) return;
 
-    console.log('🔍 Подключение альтернативного саджеста...');
+    console.log('🔍 Запуск альтернативной системы подсказок...');
 
-    // Используем встроенный провайдер подсказок через геокодер
-    const suggestView = new ymaps.SuggestView('map-search-input', {
-        results: 5,
-        // Указываем провайдер явно, иногда это помогает обойти ошибку
-        provider: 'yandex#map' 
+    // 1. Создаем стандартный поиск, но не добавляем его на карту визуально сразу
+    const searchControl = new ymaps.control.SearchControl({
+        options: {
+            provider: 'yandex#search',
+            noPlacemark: true, // не ставим метку автоматически
+            resultsPerPage: 5
+        }
     });
 
-    suggestView.events.add('select', (e) => {
-        const selectedValue = e.get('item').value;
-        performSearch(selectedValue);
+    // Добавляем его на карту скрытым (чтобы он работал)
+    map.controls.add(searchControl, { float: 'none', visible: false });
+
+    // 2. Слушаем ввод в твоем текстовом поле
+    searchInput.addEventListener('input', function() {
+        const query = searchInput.value;
+        if (query.length > 2) {
+            // Заставляем скрытый поиск искать подсказки
+            searchControl.search(query);
+        }
     });
-    
-    // Если ошибка FeatureRemovedError все еще летит в консоль, 
-    // она может блокировать выполнение. Обернем в try-catch
-    try {
-        // Код выше
-    } catch (e) {
-        console.warn('⚠️ Стандартный SuggestView не поддерживается ключом, используем поиск по Enter');
-    }
+
+    // 3. Обработка выбора результата из поиска
+    searchControl.events.add('resultselect', function (e) {
+        const index = e.get('index');
+        searchControl.getResult(index).then(function (res) {
+            const coords = res.geometry.getCoordinates();
+            const address = res.properties.get('text');
+            
+            searchInput.value = address; // Подставляем полный адрес в инпут
+            
+            if (currentMode === 'start') setStartPoint(coords, address);
+            else setFinishPoint(coords, address);
+            
+            map.setCenter(coords, 14);
+        });
+    });
 }
 
 function initMapEvents() {
