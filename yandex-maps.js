@@ -4,7 +4,6 @@ let startPlacemark = null;
 let finishPlacemark = null;
 let route = null;
 let currentMode = 'start'; 
-let suggestView = null; 
 
 let routeData = {
     start_point: null,
@@ -14,69 +13,45 @@ let routeData = {
     polyline: null
 };
 
-function showNotification(message, type = 'info') {
-    if (window.showNotification) {
-        window.showNotification(message, type);
-    } else {
-        console.log(`${type.toUpperCase()}: ${message}`);
-    }
+// Вспомогательная функция для безопасного обновления текста
+function safeSetText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
 }
 
-// ====================== ИНИЦИАЛИЗАЦИЯ КАРТЫ ======================
-
 function initYandexMap() {
-    if (map !== null) {
-        console.log('🗺️ Карта уже инициализирована');
-        clearRoute(); 
-        return Promise.resolve(map);
-    }
+    if (map !== null) return Promise.resolve(map);
 
     return new Promise((resolve, reject) => {
-        if (typeof ymaps === 'undefined') {
-            console.error('❌ API не загружен');
-            return reject(new Error('Yandex Maps API not loaded'));
-        }
-
         ymaps.ready(() => {
             try {
-                const mapContainer = document.getElementById('yandex-map');
-                if (!mapContainer) return reject(new Error('Map container not found'));
-
                 map = new ymaps.Map('yandex-map', {
-                    center: [45.035474, 38.975313], // Краснодар
+                    center: [45.035474, 38.975313],
                     zoom: 12,
                     controls: ['zoomControl', 'geolocationControl', 'fullscreenControl']
                 });
 
-                // Стандартные инициализации
-                initSearchControl();
                 initMapEvents();
                 initMapControls();
-                resetRouteData();
-
-                // --- НОВАЯ ЧАСТЬ: Привязка автоподсказок ---
                 
-                // 1. Для поиска поездок
-                bindCustomSuggest('from-input', 'suggestions-from');
-                bindCustomSuggest('to-input', 'suggestions-to');
-                
-                // 2. Для карты создания поездки
-                bindCustomSuggest('map-search-input', 'map-suggestions');
-                
-                // 3. Для обычной формы создания (если нужно)
-                bindCustomSuggest('trip-from', 'suggestions-trip-from');
-                bindCustomSuggest('trip-to', 'suggestions-trip-to');
+                // Привязываем подсказки ко всем полям
+                const inputs = [
+                    {i: 'from-input', s: 'suggestions-from'},
+                    {i: 'to-input', s: 'suggestions-to'},
+                    {i: 'map-search-input', s: 'map-suggestions'},
+                    {i: 'trip-from', s: 'suggestions-trip-from'},
+                    {i: 'trip-to', s: 'suggestions-trip-to'}
+                ];
+                inputs.forEach(pair => bindCustomSuggest(pair.i, pair.s));
 
                 resolve(map);
             } catch (error) {
-                console.error('❌ Ошибка:', error);
                 reject(error);
             }
         });
     });
 }
 
-// Эту функцию просто добавь ниже в этом же файле (если еще не добавил)
 function bindCustomSuggest(inputId, suggestionsId) {
     const input = document.getElementById(inputId);
     const container = document.getElementById(suggestionsId);
@@ -87,8 +62,7 @@ function bindCustomSuggest(inputId, suggestionsId) {
     input.addEventListener('input', () => {
         clearTimeout(timeout);
         const query = input.value.trim();
-
-        if (query.length < 2) { // Можно от 2 символов, так удобнее
+        if (query.length < 2) {
             container.style.display = 'none';
             return;
         }
@@ -96,43 +70,22 @@ function bindCustomSuggest(inputId, suggestionsId) {
         timeout = setTimeout(() => {
             ymaps.geocode(query, { results: 5 }).then(res => {
                 container.innerHTML = '';
-                const items = res.geoObjects;
-
-                if (items.getLength() === 0) {
-                    container.style.display = 'none';
-                    return;
-                }
-
-                items.each(obj => {
+                res.geoObjects.each(obj => {
                     const address = obj.getAddressLine();
                     const coords = obj.geometry.getCoordinates();
-                    
                     const div = document.createElement('div');
                     div.className = 'suggestion-item';
                     div.innerHTML = `<i class="fas fa-map-marker-alt"></i> <span>${address}</span>`;
-                    
                     div.onclick = () => {
                         input.value = address;
-                        // Сохраняем координаты в сам элемент инпута, чтобы потом их легко достать
-                        input.dataset.coords = coords.join(','); 
-                        
+                        input.dataset.coords = coords.join(',');
                         container.style.display = 'none';
                         
-                        // ЛОГИКА ДЛЯ КАРТЫ
                         if (inputId === 'map-search-input') {
-                            if (typeof setStartPoint === 'function' && typeof setFinishPoint === 'function') {
-                                if (window.currentMode === 'start') setStartPoint(coords, address);
-                                else setFinishPoint(coords, address);
-                            }
-                            if (window.map) {
-                                window.map.setCenter(coords, 14);
-                            }
+                            if (currentMode === 'start') setStartPoint(coords, address);
+                            else setFinishPoint(coords, address);
+                            map.setCenter(coords, 14);
                         }
-
-                        // ЛОГИКА ДЛЯ ПОИСКА (если нужно сразу после выбора запустить поиск)
-                        // if (inputId === 'from-input' || inputId === 'to-input') {
-                        //    ваша_функция_обновления_результатов();
-                        // }
                     };
                     container.appendChild(div);
                 });
@@ -140,253 +93,96 @@ function bindCustomSuggest(inputId, suggestionsId) {
             });
         }, 400);
     });
-
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !container.contains(e.target)) {
-            container.style.display = 'none';
-        }
-    });
-}
-let suggestTimeout = null;
-
-function initSearchControl() {
-    const searchInput = document.getElementById('map-search-input');
-    const suggestionsContainer = document.getElementById('map-suggestions');
-    if (!searchInput || !suggestionsContainer) return;
-
-    console.log('🚀 Запуск кастомной системы подсказок...');
-
-    // Закрывать подсказки при клике вне поля
-    document.addEventListener('click', (e) => {
-        if (!searchInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
-            suggestionsContainer.style.display = 'none';
-        }
-    });
-
-    searchInput.addEventListener('input', () => {
-        clearTimeout(suggestTimeout);
-        const query = searchInput.value.trim();
-
-        if (query.length < 3) {
-            suggestionsContainer.style.display = 'none';
-            return;
-        }
-
-        // Задержка 400мс, чтобы не спамить запросами
-        suggestTimeout = setTimeout(() => {
-            fetchCustomSuggestions(query);
-        }, 400);
-    });
-}
-
-function fetchCustomSuggestions(query) {
-    const suggestionsContainer = document.getElementById('map-suggestions');
-    // Находим инпут прямо здесь, чтобы он был доступен везде ниже
-    const searchInput = document.getElementById('map-search-input'); 
-    
-    ymaps.geocode(query, { results: 5 }).then(res => {
-        suggestionsContainer.innerHTML = '';
-        const items = res.geoObjects;
-
-        if (items.getLength() === 0) {
-            suggestionsContainer.style.display = 'none';
-            return;
-        }
-
-        items.each(obj => {
-            const address = obj.getAddressLine();
-            const coords = obj.geometry.getCoordinates();
-            
-            const div = document.createElement('div');
-            div.className = 'suggestion-item';
-            div.innerHTML = `<i class="fas fa-map-marker-alt"></i> <span>${address}</span>`;
-            
-            // Исправленный обработчик клика
-            div.onclick = function() {
-                // Теперь searchInput точно определен, так как мы нашли его выше
-                searchInput.value = address;
-                suggestionsContainer.style.display = 'none';
-                
-                console.log('📍 Выбран адрес:', address, 'Координаты:', coords);
-
-                // Вызываем установку точек (проверь, что эти функции объявлены в твоем коде)
-                if (typeof setStartPoint === 'function' && typeof setFinishPoint === 'function') {
-                    if (window.currentMode === 'start') {
-                        setStartPoint(coords, address);
-                    } else {
-                        setFinishPoint(coords, address);
-                    }
-                } else {
-                    console.error('❌ Функции setStartPoint или setFinishPoint не найдены!');
-                }
-                
-                // Центрируем карту на выбранном месте
-                if (window.map) {
-                    window.map.setCenter(coords, 14);
-                }
-            };
-            
-            suggestionsContainer.appendChild(div);
-        });
-
-        suggestionsContainer.style.display = 'block';
-    });
 }
 
 function initMapEvents() {
-    map.events.add('click', function(e) {
+    map.events.add('click', (e) => {
         const coords = e.get('coords');
-        geocodeCoordinates(coords).then(address => {
+        ymaps.geocode(coords).then(res => {
+            const address = res.geoObjects.get(0).getAddressLine();
             if (currentMode === 'start') setStartPoint(coords, address);
             else setFinishPoint(coords, address);
         });
     });
 }
 
-function setStartPoint(coords, address = '') {
+function setStartPoint(coords, address) {
     if (startPlacemark) map.geoObjects.remove(startPlacemark);
-    startPlacemark = new ymaps.Placemark(coords, {
-        balloonContent: `<strong>Откуда:</strong> ${address}`
-    }, {
-        preset: 'islands#greenDotIconWithCaption',
-        iconColor: '#4CAF50',
-        draggable: true
-    });
+    startPlacemark = new ymaps.Placemark(coords, { balloonContent: address }, { preset: 'islands#greenDotIconWithCaption', iconColor: '#4CAF50' });
     map.geoObjects.add(startPlacemark);
     routeData.start_point = { lat: coords[0], lng: coords[1], address: address };
-    updateAddressDisplay('start-address', address || 'Точка на карте');
+    
+    // Безопасное обновление адреса в UI
+    const displayEl = document.getElementById('start-address-val') || document.getElementById('start-address');
+    if (displayEl) displayEl.textContent = address;
+    
     if (finishPlacemark) buildRoute();
 }
 
-function setFinishPoint(coords, address = '') {
+function setFinishPoint(coords, address) {
     if (finishPlacemark) map.geoObjects.remove(finishPlacemark);
-    finishPlacemark = new ymaps.Placemark(coords, {
-        balloonContent: `<strong>Куда:</strong> ${address}`
-    }, {
-        preset: 'islands#redDotIconWithCaption',
-        iconColor: '#F44336',
-        draggable: true
-    });
+    finishPlacemark = new ymaps.Placemark(coords, { balloonContent: address }, { preset: 'islands#redDotIconWithCaption', iconColor: '#F44336' });
     map.geoObjects.add(finishPlacemark);
     routeData.finish_point = { lat: coords[0], lng: coords[1], address: address };
-    updateAddressDisplay('finish-address', address || 'Точка на карте');
+    
+    const displayEl = document.getElementById('finish-address-val') || document.getElementById('finish-address');
+    if (displayEl) displayEl.textContent = address;
+    
     if (startPlacemark) buildRoute();
-}
-
-function geocodeCoordinates(coords) {
-    return ymaps.geocode(coords).then(res => res.geoObjects.get(0).getAddressLine());
-}
-
-function performSearch(query) {
-    if (!query) return;
-    ymaps.geocode(query).then(res => {
-        const firstGeoObject = res.geoObjects.get(0);
-        if (firstGeoObject) {
-            const coords = firstGeoObject.geometry.getCoordinates();
-            const address = firstGeoObject.getAddressLine();
-            if (currentMode === 'start') setStartPoint(coords, address);
-            else setFinishPoint(coords, address);
-            map.setCenter(coords, 14);
-        }
-    });
 }
 
 function buildRoute() {
     if (!startPlacemark || !finishPlacemark) return;
     if (route) map.geoObjects.remove(route);
+    
     route = new ymaps.multiRouter.MultiRoute({
-        referencePoints: [
-            startPlacemark.geometry.getCoordinates(),
-            finishPlacemark.geometry.getCoordinates()
-        ]
-    }, {
-        boundsAutoApply: true,
-        routeActiveStrokeWidth: 6,
-        routeActiveStrokeColor: '#2196F3'
-    });
+        referencePoints: [startPlacemark.geometry.getCoordinates(), finishPlacemark.geometry.getCoordinates()]
+    }, { boundsAutoApply: true, routeActiveStrokeColor: '#2196F3' });
+
     map.geoObjects.add(route);
     route.model.events.add('requestsuccess', () => {
         const activeRoute = route.getActiveRoute();
         if (activeRoute) {
             routeData.distance = parseFloat((activeRoute.properties.get('distance').value / 1000).toFixed(1));
             routeData.duration = Math.round(activeRoute.properties.get('duration').value / 60);
-            document.getElementById('route-distance').textContent = routeData.distance;
-            document.getElementById('route-duration').textContent = routeData.duration;
-            document.getElementById('route-info').style.display = 'block';
+            
+            // ИСПОЛЬЗУЕМ БЕЗОПАСНОЕ ОБНОВЛЕНИЕ
+            safeSetText('route-distance', routeData.distance);
+            safeSetText('route-duration', routeData.duration);
+            
+            const infoBox = document.getElementById('route-info');
+            if (infoBox) infoBox.style.display = 'block';
         }
     });
 }
 
 function initMapControls() {
-    document.getElementById('btn-set-start')?.addEventListener('click', () => setCurrentMode('start'));
-    document.getElementById('btn-set-finish')?.addEventListener('click', () => setCurrentMode('finish'));
+    document.getElementById('btn-set-start')?.addEventListener('click', () => { currentMode = 'start'; updateModeBtns(); });
+    document.getElementById('btn-set-finish')?.addEventListener('click', () => { currentMode = 'finish'; updateModeBtns(); });
     document.getElementById('btn-clear-route')?.addEventListener('click', clearRoute);
-    const searchInput = document.getElementById('map-search-input');
-    searchInput?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') performSearch(searchInput.value);
-    });
-    document.getElementById('map-search-btn')?.addEventListener('click', () => {
-        performSearch(searchInput?.value);
-    });
 }
 
-function setCurrentMode(mode) {
-    currentMode = mode;
-    const btnS = document.getElementById('btn-set-start');
-    const btnF = document.getElementById('btn-set-finish');
-    if (mode === 'start') {
-        btnS?.classList.add('active'); btnF?.classList.remove('active');
-    } else {
-        btnS?.classList.remove('active'); btnF?.classList.add('active');
-    }
+function updateModeBtns() {
+    document.getElementById('btn-set-start')?.classList.toggle('active', currentMode === 'start');
+    document.getElementById('btn-set-finish')?.classList.toggle('active', currentMode === 'finish');
 }
 
 function clearRoute() {
     if (map) {
         map.geoObjects.removeAll();
         startPlacemark = null; finishPlacemark = null; route = null;
-        resetRouteData();
-        document.getElementById('route-info').style.display = 'none';
-        updateAddressDisplay('start-address', 'Не выбрано');
-        updateAddressDisplay('finish-address', 'Не выбрано');
+        routeData = { start_point: null, finish_point: null, distance: null, duration: null };
+        safeSetText('start-address-val', 'Не выбрано');
+        safeSetText('finish-address-val', 'Не выбрано');
+        const infoBox = document.getElementById('route-info');
+        if (infoBox) infoBox.style.display = 'none';
     }
 }
 
-function resetRouteData() {
-    routeData = { start_point: null, finish_point: null, distance: null, duration: null, polyline: null };
-}
-
-function updateAddressDisplay(id, text) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text.length > 35 ? text.substring(0, 35) + '...' : text;
-}
-
-// ЕДИНЫЙ ЭКСПОРТ (Исправленный)
 window.YandexMapsModule = {
     initMap: initYandexMap,
     getRouteData: () => routeData,
     clearRoute: clearRoute,
-    setCurrentMode: (mode) => { currentMode = mode; },
-    isMapInitialized: () => {
-        return map !== null;
-    }
+    isMapInitialized: () => map !== null
 };
-
-window.addEventListener('load', () => {
-    // Ждем секунду, чтобы API карт прогрузился
-    setTimeout(() => {
-        if (typeof ymaps !== 'undefined') {
-            ymaps.ready(() => {
-                // Привязываем ко всем существующим полям
-                bindCustomSuggest('from-input', 'suggestions-from');
-                bindCustomSuggest('to-input', 'suggestions-to');
-                bindCustomSuggest('trip-from', 'suggestions-trip-from');
-                bindCustomSuggest('trip-to', 'suggestions-trip-to');
-                bindCustomSuggest('map-search-input', 'map-suggestions');
-            });
-        }
-    }, 1000);
-});
-
-console.log('✅ YandexMapsModule успешно экспортирован');
 

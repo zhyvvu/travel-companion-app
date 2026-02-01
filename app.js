@@ -2203,54 +2203,47 @@ function initCreateTripMapForm() {
 async function createTripWithMap() {
     console.log('🗺️ Создание поездки с данными карты...');
     
-    if (!currentUser) {
+    if (typeof currentUser === 'undefined' || !currentUser) {
         showNotification('Пожалуйста, авторизуйтесь', 'warning');
         return;
     }
     
     try {
-        // 1. Получаем данные маршрута из нашего модуля
-        const routeData = window.YandexMapsModule.getRouteData();
+        // 1. Получаем данные из модуля карты
+        const routeData = window.YandexMapsModule ? window.YandexMapsModule.getRouteData() : null;
         
         if (!routeData || !routeData.start_point || !routeData.finish_point) {
             showNotification('Выберите точки начала и конца маршрута на карте', 'warning');
             return;
         }
         
-        // 2. Собираем данные из элементов интерфейса
-        const dateStr = document.getElementById('trip-date-map').value;
-        const departure_time = document.getElementById('trip-time-map').value;
-        const seatsCount = parseInt(document.getElementById('seats-count-map').value);
-        const priceValue = parseFloat(document.getElementById('trip-price-map').value);
-        const comment = document.getElementById('trip-comment-map').value.trim();
+        // 2. Собираем данные. Используем ?.value и || '', чтобы избежать TypeError
+        const dateStr = document.getElementById('trip-date-map')?.value || '';
+        const departure_time = document.getElementById('trip-time-map')?.value || '';
+        const seatsCount = parseInt(document.getElementById('seats-count-map')?.value || '1');
+        const priceValue = parseFloat(document.getElementById('trip-price-map')?.value || '0');
+        const comment = document.getElementById('trip-comment-map')?.value.trim() || '';
         
         // Валидация
-        if (!dateStr || !departure_time || isNaN(seatsCount) || isNaN(priceValue)) {
-            showNotification('Заполните все обязательные поля', 'warning');
+        if (!dateStr || !departure_time || isNaN(priceValue) || priceValue <= 0) {
+            showNotification('Заполните дату, время и цену', 'warning');
             return;
         }
         
-        // Создаем объект даты для отправки (бэкенд ждет ISO строку в departure_time)
-        const departure_date_obj = new Date(dateStr + 'T' + departure_time);
-        
-        // 3. Формируем tripData СТРОГО под модель TripCreate твоего бэкенда
+        // 3. Формируем tripData
         const tripData = {
             from_city: routeData.start_point.address || "Точка на карте",
             to_city: routeData.finish_point.address || "Точка на карте",
-            // Отправляем дату в простом формате ISO без миллисекунд
-            departure_time: dateStr + 'T' + departure_time, 
+            departure_time: `${dateStr}T${departure_time}:00`, // Добавляем секунды для строгого ISO
             seats_available: seatsCount,
             price: priceValue,
-            description: comment || "",
-            // Передаем объект как есть (БЕЗ JSON.stringify)
+            description: comment,
             route_data: routeData, 
             route_duration: Math.round(routeData.duration || 0) 
         };
         
-        console.log('📤 Отправляемый JSON:', tripData);
+        console.log('📤 Отправляемый объект:', tripData);
         
-        // 4. Отправляем запрос
-        // ВАЖНО: Бэкенд ждет user_id, берем его из currentUser.id
         const response = await fetch(
             `${API_BASE_URL}/api/trips/create?user_id=${currentUser.id}`, 
             {
@@ -2264,28 +2257,16 @@ async function createTripWithMap() {
         );
         
         const result = await response.json();
-        console.log('Ответ сервера:', result);
         
-        if (response.ok && result.success) {
+        if (response.ok) {
             showNotification('✅ Поездка создана успешно!', 'success');
-            
-            // Очищаем карту через модуль
-            if (window.YandexMapsModule && window.YandexMapsModule.clearRoute) {
-                window.YandexMapsModule.clearRoute();
-            }
-            
-            // Возвращаемся на главный экран
+            window.YandexMapsModule.clearRoute();
             setTimeout(() => {
-                if (typeof showScreen === 'function') showScreen('welcome');
+                if (window.showScreen) showScreen('welcome');
             }, 1500);
         } else {
-            // Если сервер вернул 422, детали будут в result.detail
-            const errorMsg = Array.isArray(result.detail) 
-                ? result.detail.map(d => d.msg).join(', ') 
-                : (result.detail || 'Ошибка создания поездки');
-            
-            showNotification(errorMsg, 'error');
-            console.error('Детали ошибки:', result.detail);
+            const errorMsg = result.detail ? (typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail)) : 'Ошибка сервера';
+            showNotification('Ошибка: ' + errorMsg, 'error');
         }
         
     } catch (error) {
