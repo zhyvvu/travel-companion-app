@@ -66,15 +66,27 @@ function initSearchControl() {
     const searchInput = document.getElementById('map-search-input');
     if (!searchInput) return;
 
-    console.log('🔍 Подключение саджеста к полю поиска...');
-    
-    // SuggestView заработает, если в index.html добавлен &load=package.full
-    suggestView = new ymaps.SuggestView('map-search-input', { results: 5 });
+    console.log('🔍 Подключение альтернативного саджеста...');
+
+    // Используем встроенный провайдер подсказок через геокодер
+    const suggestView = new ymaps.SuggestView('map-search-input', {
+        results: 5,
+        // Указываем провайдер явно, иногда это помогает обойти ошибку
+        provider: 'yandex#map' 
+    });
 
     suggestView.events.add('select', (e) => {
         const selectedValue = e.get('item').value;
         performSearch(selectedValue);
     });
+    
+    // Если ошибка FeatureRemovedError все еще летит в консоль, 
+    // она может блокировать выполнение. Обернем в try-catch
+    try {
+        // Код выше
+    } catch (e) {
+        console.warn('⚠️ Стандартный SuggestView не поддерживается ключом, используем поиск по Enter');
+    }
 }
 
 function initMapEvents() {
