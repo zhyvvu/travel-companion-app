@@ -40,13 +40,17 @@ async function authenticateUser() {
         user_info: tg.initDataUnsafe?.user
     };
 
-    // Пробуем два варианта, так как в Render/FastAPI пути могут капризничать
-    const paths = ["/api/auth", "/auth"];
+    // Пробуем ровно те пути, которые прописаны в вашем main.py
+    const endpoints = ["/api/auth", "/auth", "/api/users/auth"];
     
-    for (let path of paths) {
+    console.log("🛠 Запуск глубокой проверки связи с бэкендом...");
+
+    for (let path of endpoints) {
         try {
-            console.log(`📡 Пробую авторизацию: ${path}`);
-            const response = await fetch(`${API_BASE_URL}${path}`, {
+            const url = `${API_BASE_URL}${path}`;
+            console.log(`📡 Проверка пути: ${url}`);
+            
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(authData)
@@ -56,19 +60,24 @@ async function authenticateUser() {
                 const result = await response.json();
                 if (result.success) {
                     currentUser = result.user;
-                    console.log("✅ Успешный вход:", currentUser.first_name);
+                    console.log(`✅ СОЕДИНЕНИЕ УСТАНОВЛЕНО: ${path}`);
                     updateUI();
                     loadStats();
                     authInProgress = false;
                     return; 
                 }
+            } else if (response.status === 404) {
+                console.warn(`❓ Путь ${path} отсутствует на сервере (404)`);
+            } else {
+                const errText = await response.text();
+                console.error(`❌ Ошибка ${response.status} на ${path}:`, errText);
             }
         } catch (e) {
-            console.error(`Ошибка на пути ${path}:`, e);
+            console.error(`🔌 Ошибка сети для ${path}:`, e.message);
         }
     }
-    
-    console.error("🚫 Не удалось авторизоваться ни по одному пути");
+
+    tg.showAlert("Сервер не отвечает по знакомым адресам. Проверьте логи Render.");
     authInProgress = false;
 }
 
