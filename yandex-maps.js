@@ -187,3 +187,16 @@ window.YandexMapsModule = {
     },
     isMapInitialized: () => map !== null
 };
+
+// Прокси-функции для связи HTML и Модуля
+window.setMapMode = function(mode) {
+    if (window.YandexMapsModule) {
+        window.YandexMapsModule.setCurrentMode(mode);
+    }
+};
+
+window.clearMapRoute = function() {
+    if (window.YandexMapsModule) {
+        window.YandexMapsModule.clearRoute();
+    }
+};

@@ -2252,46 +2252,51 @@ function initCreateTripMapForm() {
 
 // Создать поездку с данными карты
 async function createTripWithMap() {
+    console.log("🚀 Начало процесса создания поездки...");
+
     if (!window.YandexMapsModule || !window.YandexMapsModule.isMapInitialized()) {
-        tg.showAlert("Ошибка: Карта не инициализирована");
+        tg.showAlert("Ошибка: Карта еще не загрузилась");
         return;
     }
 
     const routeData = window.YandexMapsModule.getRouteData();
     if (!routeData.start_point || !routeData.finish_point) {
-        tg.showAlert("Пожалуйста, выберите начальную и конечную точки на карте");
+        tg.showAlert("Пожалуйста, отметьте на карте 'Откуда' и 'Куда'");
         return;
     }
 
-    const date = document.getElementById('trip-date-map').value;
-    const time = document.getElementById('trip-time-map').value;
-    const seats = document.getElementById('seats-count-map').value;
-    const price = document.getElementById('trip-price-map').value;
-    const comment = document.getElementById('trip-comment-map').value;
+    // Собираем элементы (с проверкой на существование)
+    const elDate = document.getElementById('trip-date-map');
+    const elTime = document.getElementById('trip-time-map');
+    const elSeats = document.getElementById('seats-count-map');
+    const elPrice = document.getElementById('trip-price-map');
+    const elComment = document.getElementById('trip-comment-map');
 
-    if (!date || !time || !price) {
-        tg.showAlert("Заполните дату, время и стоимость");
+    if (!elDate || !elTime || !elPrice) {
+        console.error("❌ Не найдены элементы ввода в HTML");
+        tg.showAlert("Системная ошибка: элементы формы не найдены");
         return;
     }
 
     const tripData = {
         from_location: routeData.start_point.address,
         to_location: routeData.finish_point.address,
-        start_lat: routeData.start_point.lat,
-        start_lng: routeData.start_point.lng,
-        finish_lat: routeData.finish_point.lat,
-        finish_lng: routeData.finish_point.lng,
-        departure_date: date,
-        departure_time: time,
-        total_seats: parseInt(seats),
-        price_per_seat: parseFloat(price),
-        comment: comment,
-        distance_km: routeData.distance,
-        duration_min: routeData.duration
+        start_lat: parseFloat(routeData.start_point.lat),
+        start_lng: parseFloat(routeData.start_point.lng),
+        finish_lat: parseFloat(routeData.finish_point.lat),
+        finish_lng: parseFloat(routeData.finish_point.lng),
+        departure_date: elDate.value,
+        departure_time: elTime.value,
+        total_seats: parseInt(elSeats.value || 3),
+        price_per_seat: parseFloat(elPrice.value),
+        comment: elComment ? elComment.value : "",
+        distance_km: parseFloat(routeData.distance || 0),
+        duration_min: parseInt(routeData.duration || 0)
     };
 
+    console.log("📦 Отправляем данные:", tripData);
+
     try {
-        // Исправлен URL на /api/trips/create в соответствии с main.py
         const response = await fetch(`${API_BASE_URL}/api/trips/create?user_id=${currentUser.id}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2299,16 +2304,19 @@ async function createTripWithMap() {
         });
 
         const result = await response.json();
-        if (result.success) {
-            tg.showAlert("Поездка успешно создана!");
+
+        if (response.ok && result.success) {
+            tg.showAlert("✅ Поездка успешно создана!");
             showScreen('welcome');
-            loadStats(); 
         } else {
-            tg.showAlert("Ошибка: " + (result.detail || result.message));
+            // Если сервер вернул ошибку валидации (422), она бывает в поле detail
+            let errorMsg = result.message || result.detail || "Неизвестная ошибка";
+            if (typeof errorMsg === 'object') errorMsg = JSON.stringify(errorMsg);
+            tg.showAlert("Ошибка сервера: " + errorMsg);
         }
     } catch (error) {
-        console.error("Ошибка при создании поездки:", error);
-        tg.showAlert("Не удалось отправить данные на сервер");
+        console.error("❌ Ошибка запроса:", error);
+        tg.showAlert("Не удалось связаться с сервером");
     }
 }
 
