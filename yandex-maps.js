@@ -162,9 +162,17 @@ function initMapControls() {
     document.getElementById('btn-clear-route')?.addEventListener('click', clearRoute);
 }
 
+//function updateModeBtns() {
+  //  document.getElementById('btn-set-start')?.classList.toggle('active', currentMode === 'start');
+  //  document.getElementById('btn-set-finish')?.classList.toggle('active', currentMode === 'finish');
+//}
+
 function updateModeBtns() {
-    document.getElementById('btn-set-start')?.classList.toggle('active', currentMode === 'start');
-    document.getElementById('btn-set-finish')?.classList.toggle('active', currentMode === 'finish');
+    const btnS = document.getElementById('btn-set-start');
+    const btnF = document.getElementById('btn-set-finish');
+    
+    if (btnS) btnS.classList.toggle('active', currentMode === 'start');
+    if (btnF) btnF.classList.toggle('active', currentMode === 'finish');
 }
 
 function clearRoute() {
@@ -183,6 +191,11 @@ window.YandexMapsModule = {
     initMap: initYandexMap,
     getRouteData: () => routeData,
     clearRoute: clearRoute,
+    // Добавляем недостающую функцию:
+    setCurrentMode: (mode) => { 
+        currentMode = mode; 
+        updateModeBtns(); // Обновляем визуальный вид кнопок (активная/неактивная)
+    },
     isMapInitialized: () => map !== null
 };
 
