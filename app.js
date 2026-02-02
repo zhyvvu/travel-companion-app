@@ -10,88 +10,66 @@ document.addEventListener('DOMContentLoaded', () => {
     tg.expand();
     authenticateUser();
     
-    // Навигация
-    setupNavigation();
-});
-
-function setupNavigation() {
-    const navButtons = {
+    // Привязка навигации
+    const screens = {
         'nav-welcome': 'welcome',
         'nav-find': 'find-trip',
         'nav-create': 'create-trip-map',
         'nav-profile': 'profile'
     };
 
-    Object.entries(navButtons).forEach(([btnId, screenId]) => {
+    Object.entries(screens).forEach(([btnId, screenId]) => {
         const btn = document.getElementById(btnId);
-        if (btn) {
-            btn.onclick = () => showScreen(screenId);
-        }
+        if (btn) btn.onclick = () => showScreen(screenId);
     });
-}
+});
 
-// 2. АВТОРИЗАЦИЯ (Исправлено под ваш main.py)
+// 2. АВТОРИЗАЦИЯ (ИСПРАВЛЕНО: /api/auth/telegram)
 async function authenticateUser() {
     if (authInProgress) return;
     authInProgress = true;
     
-    const authData = {
-        init_data: tg.initData,
-        user_info: tg.initDataUnsafe?.user
-    };
+    try {
+        console.log("🔐 Авторизация через Telegram...");
+        const response = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                init_data: tg.initData,
+                user_info: tg.initDataUnsafe?.user
+            })
+        });
 
-    // Пробуем ровно те пути, которые прописаны в вашем main.py
-    const endpoints = ["/api/auth", "/auth", "/api/users/auth"];
-    
-    console.log("🛠 Запуск глубокой проверки связи с бэкендом...");
-
-    for (let path of endpoints) {
-        try {
-            const url = `${API_BASE_URL}${path}`;
-            console.log(`📡 Проверка пути: ${url}`);
-            
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(authData)
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    currentUser = result.user;
-                    console.log(`✅ СОЕДИНЕНИЕ УСТАНОВЛЕНО: ${path}`);
-                    updateUI();
-                    loadStats();
-                    authInProgress = false;
-                    return; 
-                }
-            } else if (response.status === 404) {
-                console.warn(`❓ Путь ${path} отсутствует на сервере (404)`);
-            } else {
-                const errText = await response.text();
-                console.error(`❌ Ошибка ${response.status} на ${path}:`, errText);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                currentUser = result.user;
+                console.log("✅ Успешный вход:", currentUser.first_name);
+                updateUI();
+                loadStats();
             }
-        } catch (e) {
-            console.error(`🔌 Ошибка сети для ${path}:`, e.message);
+        } else {
+            console.error("❌ Ошибка авторизации. Статус:", response.status);
+            // Если Telegram данные не подходят, можно попробовать simple (для тестов)
+            if (response.status === 404) console.error("Путь /api/auth/telegram не найден. Проверьте main.py");
         }
+    } catch (e) {
+        console.error("❌ Ошибка сети:", e);
+    } finally {
+        authInProgress = false;
     }
-
-    tg.showAlert("Сервер не отвечает по знакомым адресам. Проверьте логи Render.");
-    authInProgress = false;
 }
 
-// 3. ПОИСК И БРОНИРОВАНИЕ
+// 3. ПОИСК ПОЕЗДОК (Префикс /api/trips)
 async function searchTrips() {
     const from = document.getElementById('find-from')?.value;
     const to = document.getElementById('find-to')?.value;
     const date = document.getElementById('find-date')?.value;
     const container = document.getElementById('trips-results');
 
-    container.innerHTML = '<div class="loader">Поиск поездок...</div>';
+    container.innerHTML = 'Ищем...';
 
     try {
-        // В вашем main.py префикс /api/trips
         const url = `${API_BASE_URL}/api/trips/search?from_city=${encodeURIComponent(from)}&to_city=${encodeURIComponent(to)}&date=${date}`;
         const res = await fetch(url);
         const data = await res.json();
@@ -99,51 +77,40 @@ async function searchTrips() {
         if (data.trips?.length > 0) {
             container.innerHTML = data.trips.map(trip => `
                 <div class="trip-card" onclick="showTripDetails(${trip.id})">
-                    <div class="trip-main">
-                        <strong>${trip.from_city} → ${trip.to_city}</strong>
-                        <span class="price">${trip.price_per_seat || trip.price} ₽</span>
-                    </div>
-                    <div class="trip-meta">📅 ${trip.departure_date} в ${trip.departure_time}</div>
+                    <strong>${trip.from_city} → ${trip.to_city}</strong><br>
+                    <span>${trip.price || trip.price_per_seat} ₽</span>
                 </div>
             `).join('');
         } else {
-            container.innerHTML = '<div class="no-results">Поездок не найдено</div>';
+            container.innerHTML = 'Поездок не найдено';
         }
-    } catch (e) {
-        container.innerHTML = 'Ошибка загрузки данных';
-    }
+    } catch (e) { container.innerHTML = 'Ошибка загрузки'; }
 }
 
-// ФУНКЦИЯ БРОНИРОВАНИЯ (Восстановлена полностью)
+// 4. БРОНИРОВАНИЕ (Префикс /api/bookings)
 async function bookTrip(tripId) {
     if (!currentUser) return;
-    tg.showConfirm("Забронировать место?", async (confirmed) => {
-        if (!confirmed) return;
+    tg.showConfirm("Забронировать?", async (ok) => {
+        if (!ok) return;
         try {
-            // Эндпоинт из вашего main.py
             const res = await fetch(`${API_BASE_URL}/api/bookings/create?user_id=${currentUser.id}&trip_id=${tripId}`, {
                 method: 'POST'
             });
             const data = await res.json();
             if (data.success) {
-                tg.showAlert("✅ Место забронировано!");
+                tg.showAlert("✅ Забронировано!");
                 showScreen('welcome');
                 loadStats();
                 closeModal();
-            } else {
-                tg.showAlert("Ошибка: " + (data.detail || "Нет мест"));
             }
         } catch (e) { tg.showAlert("Ошибка сети"); }
     });
 }
 
-// 4. СОЗДАНИЕ ПОЕЗДКИ
+// 5. СОЗДАНИЕ ПОЕЗДКИ
 async function createTripWithMap() {
     const route = window.YandexMapsModule?.getRouteData();
-    if (!route?.start_point) {
-        tg.showAlert("Сначала проложите маршрут на карте");
-        return;
-    }
+    if (!route?.start_point) { tg.showAlert("Выберите маршрут"); return; }
 
     const payload = {
         from_city: route.start_point.address,
@@ -175,19 +142,25 @@ async function createTripWithMap() {
     } catch (e) { tg.showAlert("Ошибка сервера"); }
 }
 
-// 5. МОДАЛЬНЫЕ ОКНА И ПРОФИЛЬ
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+    const target = document.getElementById(screenId);
+    if (target) target.style.display = 'block';
+    
+    if (screenId === 'create-trip-map') window.YandexMapsModule?.initMap();
+    if (screenId === 'profile') loadUserProfile();
+}
+
 function showTripDetails(tripId) {
     openModal("Загрузка...");
     fetch(`${API_BASE_URL}/api/trips/${tripId}`)
         .then(r => r.json())
         .then(trip => {
             document.getElementById('modal-body').innerHTML = `
-                <div class="trip-details">
-                    <h3>${trip.from_city} — ${trip.to_city}</h3>
-                    <p>Водитель: ${trip.driver_name || 'Попутчик'}</p>
-                    <p>Мест: ${trip.available_seats || trip.seats_available}</p>
-                    <button class="submit-btn" onclick="bookTrip(${trip.id})">Забронировать</button>
-                </div>
+                <h3>Поездка #${trip.id}</h3>
+                <p>${trip.from_city} → ${trip.to_city}</p>
+                <button onclick="bookTrip(${trip.id})">Забронировать</button>
             `;
         });
 }
@@ -203,39 +176,10 @@ function closeModal() {
     if (m) m.style.display = 'none';
 }
 
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    
-    const target = document.getElementById(screenId);
-    if (target) {
-        target.style.display = 'block';
-        let navId = 'nav-' + screenId.replace('-trip', '').replace('-map', '');
-        document.getElementById(navId)?.classList.add('active');
-    }
-
-    if (screenId === 'create-trip-map') window.YandexMapsModule?.initMap();
-    if (screenId === 'profile') loadUserProfile();
-}
-
 async function loadUserProfile() {
     const container = document.getElementById('profile-data');
     if (!container || !currentUser) return;
-    
-    // Используем поля из вашей модели User в database.py
-    container.innerHTML = `
-        <div class="profile-info">
-            <h3>${currentUser.first_name} ${currentUser.last_name || ''}</h3>
-            <p>Рейтинг водителя: ⭐ ${currentUser.driver_rating || '5.0'}</p>
-            <div class="car-card">
-                <h4>🚗 Мой автомобиль</h4>
-                ${currentUser.has_car ? `
-                    <p>${currentUser.car_model || 'Не указано'}</p>
-                    <p>Номер: ${currentUser.car_plate || '---'}</p>
-                ` : '<p>Авто не добавлено</p>'}
-            </div>
-        </div>
-    `;
+    container.innerHTML = `<h3>${currentUser.first_name}</h3><p>Авто: ${currentUser.car_model || 'Нет'}</p>`;
 }
 
 async function loadStats() {
@@ -243,22 +187,18 @@ async function loadStats() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/users/${currentUser.id}/stats`);
         const data = await res.json();
-        if (document.getElementById('trips-count')) 
-            document.getElementById('trips-count').textContent = data.trips_count || 0;
-        if (document.getElementById('bookings-count')) 
-            document.getElementById('bookings-count').textContent = data.bookings_count || 0;
+        if (document.getElementById('trips-count')) document.getElementById('trips-count').textContent = data.trips_count || 0;
+        if (document.getElementById('bookings-count')) document.getElementById('bookings-count').textContent = data.bookings_count || 0;
     } catch (e) {}
 }
 
 function updateUI() {
     if (currentUser) {
         document.getElementById('user-name').textContent = currentUser.first_name;
-        const welcome = document.getElementById('welcome-title');
-        if (welcome) welcome.textContent = `👋 Привет, ${currentUser.first_name}!`;
     }
 }
 
-// Экспорт
+// Глобальный доступ
 window.showScreen = showScreen;
 window.createTripWithMap = createTripWithMap;
 window.searchTrips = searchTrips;
