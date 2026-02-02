@@ -1338,32 +1338,41 @@ function getStatusClass(status) {
 function displaySearchResults(trips) {
     const resultsContainer = document.getElementById('search-results');
     if (!resultsContainer) return;
-    
+
     if (!trips || trips.length === 0) {
-        resultsContainer.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-search"></i>
-                <p>Поездки не найдены</p>
-                <p>Попробуйте изменить параметры поиска</p>
-            </div>
-        `;
+        showEmptyState(resultsContainer);
         return;
     }
-    
-    // Проверяем и обновляем статусы перед отображением
-    const updatedTrips = trips.map(checkAndUpdateTripStatus);
-    
+
+    const now = new Date();
+
+    // 1. Сначала фильтруем: убираем те, что уже уехали
+    const futureTrips = trips.filter(trip => {
+        const tripDate = new Date(trip.departure_time || trip.departure.datetime);
+        return tripDate > now;
+    });
+
+    // 2. Если после фильтрации пусто — показываем пустой экран
+    if (futureTrips.length === 0) {
+        showEmptyState(resultsContainer);
+        return;
+    }
+
+    // 3. Проверяем и обновляем статусы (твоя логика)
+    const updatedTrips = futureTrips.map(checkAndUpdateTripStatus);
+
+    // 4. Отрисовка
     resultsContainer.innerHTML = updatedTrips.map(trip => `
         <div class="trip-card" onclick="showTripDetails(${trip.id})">
             <div class="trip-header">
                 <div class="driver-info">
                     <div class="driver-avatar">
-                        ${trip.driver.avatar_initials || 'П'}
+                        ${(trip.driver && trip.driver.avatar_initials) ? trip.driver.avatar_initials : 'П'}
                     </div>
                     <div>
-                        <div class="driver-name">${trip.driver.name}</div>
+                        <div class="driver-name">${trip.driver ? trip.driver.name : 'Водитель'}</div>
                         <div class="driver-rating">
-                            <i class="fas fa-star"></i> ${trip.driver.rating.toFixed(1)}
+                            <i class="fas fa-star"></i> ${trip.driver ? trip.driver.rating.toFixed(1) : '5.0'}
                         </div>
                     </div>
                 </div>
@@ -1377,7 +1386,6 @@ function displaySearchResults(trips) {
                 <i class="fas fa-flag-checkered"></i>
                 <span>${trip.route.to}</span>
                 
-                <!-- СТАТУС ПОЕЗДКИ (НОВОЕ!) -->
                 <span class="trip-status ${getStatusClass(trip.status || 'active')}">
                     ${getStatusText(trip.status || 'active')}
                 </span>
@@ -1388,14 +1396,12 @@ function displaySearchResults(trips) {
                 <div><i class="fas fa-users"></i> ${trip.seats.available} мест</div>
                 ${trip.car_info ? `<div><i class="fas fa-car"></i> ${trip.car_info.model}</div>` : ''}
                 
-                <!-- ВРЕМЯ ПРИБЫТИЯ (НОВОЕ!) -->
                 ${trip.estimated_arrival ? `
                     <div><i class="fas fa-hourglass-end"></i> Прибытие: ${formatArrivalTime(trip.estimated_arrival)}</div>
                 ` : ''}
             </div>
             
             <div class="trip-actions">
-                <!-- Скрываем кнопку бронирования для завершённых поездок -->
                 ${(trip.status === 'active' || !trip.status) ? `
                     <button class="btn-book" onclick="event.stopPropagation(); bookTrip(${trip.id})">
                         <i class="fas fa-check"></i> Забронировать
@@ -1408,6 +1414,17 @@ function displaySearchResults(trips) {
             </div>
         </div>
     `).join('');
+}
+
+// Вспомогательная функция, чтобы не дублировать код пустого состояния
+function showEmptyState(container) {
+    container.innerHTML = `
+        <div class="empty-state">
+            <i class="fas fa-search"></i>
+            <p>Актуальные поездки не найдены</p>
+            <p>Попробуйте изменить параметры поиска или загляните позже</p>
+        </div>
+    `;
 }
 
 /**
