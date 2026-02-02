@@ -10,18 +10,29 @@ document.addEventListener('DOMContentLoaded', () => {
     tg.expand();
     authenticateUser();
     
-    // Навигация
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.onclick = () => showScreen(btn.id.replace('nav-', ''));
-    });
+    // Навигация (Ваша оригинальная логика)
+    setupNavigation();
 });
 
-// 2. АВТОРИЗАЦИЯ (Исправлен путь на /api/users/auth)
+function setupNavigation() {
+    const navButtons = ['welcome', 'find', 'create', 'profile'];
+    navButtons.forEach(id => {
+        const btn = document.getElementById(`nav-${id}`);
+        if (btn) {
+            btn.onclick = () => {
+                const screenId = id === 'create' ? 'create-trip-map' : (id === 'find' ? 'find-trip' : id);
+                showScreen(screenId);
+            };
+        }
+    });
+}
+
+// 2. АВТОРИЗАЦИЯ (ИСПРАВЛЕННЫЙ ПУТЬ)
 async function authenticateUser() {
     if (authInProgress) return;
     authInProgress = true;
     try {
-        const response = await fetch(`${API_BASE_URL}/api/users/auth`, {
+        const response = await fetch(`${API_BASE_URL}/api/auth`, { // Исправлено с /users/auth на /auth
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -35,72 +46,78 @@ async function authenticateUser() {
             updateUI();
             loadStats();
         }
-    } catch (e) { console.error("Ошибка входа:", e); }
-    finally { authInProgress = false; }
+    } catch (e) {
+        console.error("Ошибка входа:", e);
+    } finally {
+        authInProgress = false;
+    }
 }
 
-// 3. ПОИСК И БРОНИРОВАНИЕ (ВАША ЛОГИКА)
+// 3. ПОИСК И БРОНИРОВАНИЕ (ВАША ПОЛНАЯ ЛОГИКА)
 async function searchTrips() {
     const from = document.getElementById('find-from').value;
     const to = document.getElementById('find-to').value;
     const date = document.getElementById('find-date').value;
 
     const resultsContainer = document.getElementById('trips-results');
-    resultsContainer.innerHTML = '<div class="loader">Ищем лучшие варианты...</div>';
+    resultsContainer.innerHTML = '<div class="loader">Ищем поездки...</div>';
 
     try {
         const url = `${API_BASE_URL}/api/trips/search?from_city=${encodeURIComponent(from)}&to_city=${encodeURIComponent(to)}&date=${date}`;
         const res = await fetch(url);
         const data = await res.json();
 
-        resultsContainer.innerHTML = data.trips?.length 
-            ? data.trips.map(trip => renderTripCard(trip)).join('')
-            : '<div class="no-results">Поездок не найдено</div>';
-    } catch (e) { resultsContainer.innerHTML = 'Ошибка загрузки'; }
+        if (data.trips && data.trips.length > 0) {
+            resultsContainer.innerHTML = data.trips.map(trip => `
+                <div class="trip-card" onclick="showTripDetails(${trip.id})">
+                    <div class="trip-main">
+                        <strong>${trip.from_city} → ${trip.to_city}</strong>
+                        <span class="price">${trip.price} ₽</span>
+                    </div>
+                    <div class="trip-info">
+                        <span>📅 ${trip.departure_date}</span>
+                        <span>👤 ${trip.driver_name || 'Водитель'}</span>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            resultsContainer.innerHTML = '<div class="no-results">Поездок не найдено</div>';
+        }
+    } catch (e) {
+        resultsContainer.innerHTML = 'Ошибка загрузки данных';
+    }
 }
 
-function renderTripCard(trip) {
-    return `
-        <div class="trip-card" onclick="showTripDetails(${trip.id})">
-            <div class="trip-main">
-                <div class="route"><strong>${trip.from_city}</strong> → <strong>${trip.to_city}</strong></div>
-                <div class="price">${trip.price} ₽</div>
-            </div>
-            <div class="trip-meta">
-                <span>📅 ${trip.departure_date} в ${trip.departure_time}</span>
-                <span>👤 ${trip.driver_name}</span>
-            </div>
-        </div>`;
-}
-
-// ВОССТАНОВЛЕННАЯ ФУНКЦИЯ БРОНИРОВАНИЯ
+// ФУНКЦИЯ БРОНИРОВАНИЯ (Восстановлена)
 async function bookTrip(tripId) {
-    tg.showConfirm("Забронировать место в этой поездке?", async (confirmed) => {
-        if (!confirmed) return;
-        
+    tg.showConfirm("Вы хотите забронировать место?", async (ok) => {
+        if (!ok) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/api/bookings/create?user_id=${currentUser.id}&trip_id=${tripId}`, {
+            const res = await fetch(`${API_BASE_URL}/api/bookings/create?user_id=${currentUser.id}&trip_id=${tripId}`, {
                 method: 'POST'
             });
-            const result = await response.json();
-            if (result.success) {
-                tg.showAlert("✅ Место забронировано! Водитель получит уведомление.");
+            const data = await res.json();
+            if (data.success) {
+                tg.showAlert("✅ Успешно забронировано!");
                 showScreen('welcome');
                 loadStats();
             } else {
-                tg.showAlert("Ошибка: " + result.detail);
+                tg.showAlert("Ошибка: " + (data.detail || "Не удалось забронировать"));
             }
-        } catch (e) {
-            tg.showAlert("Не удалось связаться с сервером");
-        }
+        } catch (e) { tg.showAlert("Ошибка сети"); }
     });
 }
 
-// 4. СОЗДАНИЕ ПОЕЗДКИ (Исправлено для Карт и Pydantic)
+// 4. СОЗДАНИЕ ПОЕЗДКИ (С КАРТОЙ И ПРАВИЛЬНЫМИ ПОЛЯМИ)
 async function createTripWithMap() {
-    const route = window.YandexMapsModule?.getRouteData();
-    if (!route?.start_point || !route?.finish_point) {
-        tg.showAlert("Сначала отметьте маршрут на карте");
+    if (!window.YandexMapsModule?.isMapInitialized()) {
+        tg.showAlert("Карта не готова");
+        return;
+    }
+
+    const route = window.YandexMapsModule.getRouteData();
+    if (!route.start_point || !route.finish_point) {
+        tg.showAlert("Отметьте маршрут");
         return;
     }
 
@@ -126,59 +143,60 @@ async function createTripWithMap() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (res.ok) {
+        const result = await res.json();
+        if (res.ok && result.success) {
             tg.showAlert("✅ Поездка создана!");
             showScreen('welcome');
             loadStats();
         } else {
-            const err = await res.json();
-            tg.showAlert("Ошибка: " + JSON.stringify(err.detail));
+            tg.showAlert("Ошибка: " + JSON.stringify(result.detail));
         }
-    } catch (e) { tg.showAlert("Сбой сети"); }
+    } catch (e) { tg.showAlert("Ошибка связи с сервером"); }
 }
 
-// 5. МОДАЛЬНЫЕ ОКНА И ДЕТАЛИ (ВОССТАНОВЛЕНО)
+// 5. ПРОФИЛЬ И МОДАЛЬНЫЕ ОКНА (ВАША ЛОГИКА)
 function showTripDetails(tripId) {
-    // Ваша логика открытия деталей поездки
-    openModal("Загрузка деталей...");
+    openModal("Загрузка...");
     fetch(`${API_BASE_URL}/api/trips/${tripId}`)
         .then(r => r.json())
         .then(trip => {
-            const content = `
-                <h3>Поездка ${trip.from_city} — ${trip.to_city}</h3>
-                <p>Водитель: ${trip.driver_name}</p>
+            document.getElementById('modal-body').innerHTML = `
+                <h3>${trip.from_city} — ${trip.to_city}</h3>
+                <p>Дата: ${trip.departure_date} ${trip.departure_time}</p>
+                <p>Мест: ${trip.seats_available}</p>
                 <p>Цена: ${trip.price} ₽</p>
-                <button class="submit-btn" onclick="bookTrip(${trip.id})">Забронировать</button>
+                <button class="book-btn" onclick="bookTrip(${trip.id})">Забронировать</button>
             `;
-            document.getElementById('modal-body').innerHTML = content;
         });
 }
 
 function openModal(html) {
-    const modal = document.getElementById('modal');
-    document.getElementById('modal-body').innerHTML = html;
-    modal.style.display = 'flex';
+    const m = document.getElementById('modal');
+    if (m) {
+        document.getElementById('modal-body').innerHTML = html;
+        m.style.display = 'flex';
+    }
 }
 
 function closeModal() {
-    document.getElementById('modal').style.display = 'none';
+    const m = document.getElementById('modal');
+    if (m) m.style.display = 'none';
 }
 
-// 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// 6. ВСПОМОГАТЕЛЬНЫЕ
 function showScreen(screenId) {
-    // Если screenId пришел от кнопки навигации (например 'nav-create'), чистим его
-    const id = screenId.replace('nav-', '');
-    // Обработка случая, если экран создания теперь называется 'create-trip-map'
-    const targetId = (id === 'create') ? 'create-trip-map' : id;
-
     document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     
-    const target = document.getElementById(targetId);
+    const target = document.getElementById(screenId);
     if (target) {
         target.style.display = 'block';
-        document.getElementById('nav-' + id)?.classList.add('active');
+        const navSuffix = screenId === 'create-trip-map' ? 'create' : (screenId === 'find-trip' ? 'find' : screenId);
+        document.getElementById(`nav-${navSuffix}`)?.classList.add('active');
     }
+    
+    if (screenId === 'create-trip-map') window.YandexMapsModule?.initMap();
+    if (screenId === 'profile') loadUserProfile();
 }
 
 async function loadStats() {
@@ -188,20 +206,31 @@ async function loadStats() {
         const data = await res.json();
         document.getElementById('trips-count').textContent = data.trips_count || 0;
         document.getElementById('bookings-count').textContent = data.bookings_count || 0;
-    } catch (e) { console.error(e); }
+    } catch (e) {}
+}
+
+async function loadUserProfile() {
+    const container = document.getElementById('profile-data');
+    if (!container || !currentUser) return;
+    
+    container.innerHTML = `<h3>${currentUser.first_name}</h3><div id="cars-list">Загрузка машин...</div>`;
+    
+    const res = await fetch(`${API_BASE_URL}/api/users/${currentUser.id}/cars`);
+    const data = await res.json();
+    document.getElementById('cars-list').innerHTML = data.cars.map(c => `<div>🚗 ${c.model}</div>`).join('');
 }
 
 function updateUI() {
     if (currentUser) {
         document.getElementById('user-name').textContent = currentUser.first_name;
-        const title = document.getElementById('welcome-title');
-        if (title) title.textContent = `👋 Привет, ${currentUser.first_name}!`;
+        const welcome = document.getElementById('welcome-title');
+        if (welcome) welcome.textContent = `👋 Привет, ${currentUser.first_name}!`;
     }
 }
 
-// Экспорт в window
+// Глобальный доступ
 window.showScreen = showScreen;
-window.searchTrips = searchTrips;
 window.createTripWithMap = createTripWithMap;
+window.searchTrips = searchTrips;
 window.bookTrip = bookTrip;
 window.closeModal = closeModal;
