@@ -89,21 +89,31 @@ async function loadStats() {
 // =============== АВТОДОПОЛНЕНИЕ (ЯНДЕКС + RUSSIAN_CITIES) ===============
 
 function setupCityAutocomplete() {
-    console.log('=== Настройка автодополнения ===');
+    console.log('=== Настройка автодополнения (синхронизация с HTML) ===');
+    
+    // Карта соответствия: экран -> массив ID полей в твоем HTML
     const fieldMap = {
-        'find-trip': ['from-input', 'to-input'],
-        'create-trip': ['trip-from', 'trip-to']
+        'find-trip': ['find-from', 'find-to'],
+        'create-trip-map': ['map-search-input'] // Для поиска на карте
     };
 
     const fieldIds = fieldMap[window.currentScreen];
-    if (!fieldIds) return;
+    if (!fieldIds) {
+        console.log('Автодополнение для экрана ' + window.currentScreen + ' не требуется');
+        return;
+    }
 
     fieldIds.forEach(id => {
         const input = document.getElementById(id);
-        if (input && !input._autocompleteBound) {
-            input.addEventListener('input', handleCityInput);
-            input.addEventListener('focus', handleCityFocus);
-            input._autocompleteBound = true;
+        if (input) {
+            if (!input._autocompleteBound) {
+                input.addEventListener('input', handleCityInput);
+                input.addEventListener('focus', handleCityFocus);
+                input._autocompleteBound = true;
+                console.log(`✅ Обработчик привязан к: ${id}`);
+            }
+        } else {
+            console.warn(`⚠️ Элемент с ID "${id}" не найден в HTML`);
         }
     });
 }
@@ -118,6 +128,9 @@ function handleCityFocus(e) {
     if (e.target.value.length >= 2) showCitySuggestionsSimple(e.target.id, e.target.value);
 }
 
+/**
+ * Обновленная функция отрисовки подсказок под правильными контейнерами
+ */
 function showCitySuggestionsSimple(fieldId, query) {
     if (!window.RUSSIAN_CITIES) return;
 
@@ -126,24 +139,35 @@ function showCitySuggestionsSimple(fieldId, query) {
         city.toLowerCase().includes(queryLower)
     ).slice(0, 5);
 
+    // В HTML у нас контейнеры называются "${fieldId}-suggestions"
     let container = document.getElementById(`${fieldId}-suggestions`);
+    
+    // Если контейнера нет в HTML, создаем его динамически
     if (!container) {
         container = document.createElement('div');
         container.id = `${fieldId}-suggestions`;
         container.className = 'city-suggestions';
-        container.style.cssText = `position:absolute; background:white; border:1px solid #ccc; z-index:10000; width:100%; max-height:200px; overflow-y:auto;`;
         const input = document.getElementById(fieldId);
-        input.parentNode.style.position = 'relative';
-        input.parentNode.appendChild(container);
+        if (input && input.parentNode) {
+            input.parentNode.style.position = 'relative';
+            input.parentNode.appendChild(container);
+        }
+    }
+
+    if (results.length === 0) {
+        container.style.display = 'none';
+        return;
     }
 
     container.innerHTML = results.map(city => `
-        <div style="padding:10px; cursor:pointer; border-bottom:1px solid #eee;" 
+        <div class="suggestion-item" 
+             style="padding:12px; cursor:pointer; border-bottom:1px solid #eee; background: white;" 
              onclick="selectCitySimple('${fieldId}', '${city.replace(/'/g, "\\'")}')">
             📍 ${city}
         </div>
     `).join('');
-    container.style.display = results.length ? 'block' : 'none';
+    
+    container.style.display = 'block';
 }
 
 window.selectCitySimple = function(fieldId, city) {

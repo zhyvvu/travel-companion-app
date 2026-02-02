@@ -18,7 +18,7 @@
                 <h1>Travel Companion</h1>
             </div>
             <div class="user-info" id="user-info">
-                <div class="loader"></div>
+                <span id="user-name">Загрузка...</span>
             </div>
         </header>
 
@@ -63,16 +63,16 @@
                 </div>
                 
                 <div class="search-form">
-                    <div class="input-group">
+                    <div class="input-group" style="position: relative;">
                         <i class="fas fa-map-marker-alt"></i>
                         <input type="text" id="find-from" placeholder="Откуда" autocomplete="off">
-                        <div id="suggestions-find-from" class="suggestions-container"></div>
+                        <div id="find-from-suggestions" class="city-suggestions"></div>
                     </div>
                     
-                    <div class="input-group">
+                    <div class="input-group" style="position: relative;">
                         <i class="fas fa-flag-checkered"></i>
                         <input type="text" id="find-to" placeholder="Куда" autocomplete="off">
-                        <div id="suggestions-find-to" class="suggestions-container"></div>
+                        <div id="find-to-suggestions" class="city-suggestions"></div>
                     </div>
                     
                     <div class="input-row">
@@ -114,14 +114,14 @@
                 <div class="trip-form-map">
                     <div class="map-section">
                         <div class="map-search">
-                            <div class="input-group" style="flex: 1; margin-bottom: 0;">
+                            <div class="input-group" style="flex: 1; margin-bottom: 0; position: relative;">
                                 <input type="text" id="map-search-input" placeholder="Поиск адреса..." autocomplete="off">
-                                <div id="map-suggestions" class="suggestions-container"></div>
+                                <div id="map-search-input-suggestions" class="city-suggestions"></div>
                             </div>
                             <button id="map-search-btn" type="button"><i class="fas fa-search"></i></button>
                         </div>
 
-                        <div id="yandex-map" class="map-container"></div>
+                        <div id="yandex-map" class="map-container" style="height: 300px; width: 100%;"></div>
                         
                         <div class="map-controls">
                             <button id="btn-set-start" class="map-btn active" onclick="setMapMode('start')">
@@ -196,6 +196,13 @@
                     </div>
             </section>
         </main>
+
+        <div id="modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeModal()">&times;</span>
+                <div id="modal-body"></div>
+            </div>
+        </div>
 
         <nav class="bottom-nav">
             <button class="nav-btn active" id="nav-welcome" onclick="showScreen('welcome')">
