@@ -29,9 +29,12 @@ async function authenticateUser() {
     if (authInProgress) return;
     authInProgress = true;
     
+    // ВАЖНО: Используем путь /api/auth/telegram, как в вашем main.py
+    const url = `${API_BASE_URL}/api/auth/telegram?v=${Date.now()}`;
+    
     try {
-        console.log("🔐 Авторизация через Telegram...");
-        const response = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
+        console.log("📡 Отправка запроса на:", url);
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -44,17 +47,17 @@ async function authenticateUser() {
             const result = await response.json();
             if (result.success) {
                 currentUser = result.user;
-                console.log("✅ Успешный вход:", currentUser.first_name);
+                console.log("✅ Успешный вход!");
                 updateUI();
                 loadStats();
             }
         } else {
-            console.error("❌ Ошибка авторизации. Статус:", response.status);
-            // Если Telegram данные не подходят, можно попробовать simple (для тестов)
-            if (response.status === 404) console.error("Путь /api/auth/telegram не найден. Проверьте main.py");
+            console.error(`❌ Ошибка ${response.status}. Проверьте эндпоинт в main.py`);
+            const text = await response.text();
+            console.log("Ответ сервера:", text);
         }
     } catch (e) {
-        console.error("❌ Ошибка сети:", e);
+        console.error("❌ Сетевой сбой:", e);
     } finally {
         authInProgress = false;
     }
