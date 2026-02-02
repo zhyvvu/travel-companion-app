@@ -198,4 +198,3 @@ window.YandexMapsModule = {
     },
     isMapInitialized: () => map !== null
 };
-
