@@ -1,175 +1,315 @@
+// =============== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===============
 const tg = window.Telegram.WebApp;
-const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
+const API_BASE_URL = 'https://your-backend-api.com'; // ЗАМЕНИТЕ НА ВАШ URL
+let currentUser = null;
+let currentTrips = [];
+window.currentScreen = 'welcome';
 
-let currentUser = JSON.parse(localStorage.getItem('travel_user')) || null;
-let userCars = [];
-let currentTrips = []; // Для хранения результатов поиска
+// Согласованные ID полей (чтобы не было путаницы между частями)
+// Поиск: 'from-input', 'to-input', 'date-input'
+// Создание: 'trip-from', 'trip-to', 'trip-date', 'trip-time'
 
 // =============== ИНИЦИАЛИЗАЦИЯ ===============
+function initApp() {
+    console.log('🚀 App starting...');
+    tg.expand();
+    tg.ready();
 
-document.addEventListener('DOMContentLoaded', async () => {
-    setupEventListeners();
-    await initTelegram();
-    showScreen('welcome');
-    if (tg.ready) tg.ready();
-});
-
-async function initTelegram() {
-    const user = tg.initDataUnsafe?.user;
-    if (user) {
+    // Загрузка данных пользователя из Telegram
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
         currentUser = {
-            telegram_id: user.id,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            username: user.username
+            id: tg.initDataUnsafe.user.id,
+            telegram_id: tg.initDataUnsafe.user.id,
+            first_name: tg.initDataUnsafe.user.first_name,
+            last_name: tg.initDataUnsafe.user.last_name,
+            username: tg.initDataUnsafe.user.username,
+            name: `${tg.initDataUnsafe.user.first_name} ${tg.initDataUnsafe.user.last_name || ''}`.trim()
         };
-        await tryAuth(currentUser);
-    } else if (!currentUser) {
-        // Тестовый режим для браузера
-        currentUser = { telegram_id: 123456789, first_name: 'Тестовый' };
-        showNotification('🔧 Тестовый режим', 'info');
+        console.log('👤 User identified:', currentUser);
+        updateUserUI();
     }
-    updateUI();
+
+    setupEventListeners();
+    loadStats();
+    showScreen('welcome');
 }
 
-async function tryAuth(userData) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/telegram`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData)
-        });
-        const data = await response.json();
-        if (data.success) {
-            currentUser = { ...currentUser, ...data.user };
-            localStorage.setItem('travel_user', JSON.stringify(currentUser));
-            await loadUserCars();
-        }
-    } catch (e) { console.error('Auth error:', e); }
-}
-
-// =============== УПРАВЛЕНИЕ ЭКРАНАМИ ===============
-
+// =============== НАВИГАЦИЯ ===============
 function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
-    const target = document.getElementById(screenId);
-    if (target) {
-        target.style.display = 'block';
-        target.classList.add('active');
-    }
+    console.log('📱 Switching to screen:', screenId);
+    window.currentScreen = screenId;
 
-    // Навигация Telegram
-    if (screenId === 'welcome') tg.BackButton.hide();
-    else tg.BackButton.show();
-
-    // Логика инициализации конкретных экранов
-    if (screenId === 'profile') loadFullProfile();
-    if (screenId === 'create-trip' || screenId === 'find-trip') {
-        renderCarSelects(); // Обновляем список машин во всех формах
-        setTimeout(() => typeof setupCityAutocomplete === 'function' && setupCityAutocomplete(), 100);
-    }
-}
-
-// =============== МАШИНЫ (УНИВЕРСАЛЬНО) ===============
-
-async function loadUserCars() {
-    if (!currentUser) return;
-    const res = await fetch(`${API_BASE_URL}/api/users/cars?telegram_id=${currentUser.telegram_id}`);
-    const data = await res.json();
-    if (data.success) {
-        userCars = data.cars || [];
-        renderCarSelects();
-    }
-}
-
-// Одна функция для обновления всех select-ов с машинами в приложении
-function renderCarSelects() {
-    // Ищем все элементы выбора авто (на обычном экране и на экране с картой)
-    const selectors = ['car-model-select', 'car-model-map', 'car-select']; 
+    // Скрываем все экраны
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     
-    selectors.forEach(id => {
+    // Показываем нужный
+    const activeScreen = document.getElementById(screenId);
+    if (activeScreen) {
+        activeScreen.classList.add('active');
+    }
+
+    // Инициализация специфических форм
+    if (screenId === 'create-trip') initCreateTripForm();
+    if (screenId === 'find-trip') initSearchForm();
+    if (screenId === 'profile') loadFullProfile();
+    
+    // Настройка автодополнения для текущего экрана
+    setupCityAutocomplete();
+
+    // Управление кнопкой "Назад" в TG
+    if (screenId === 'welcome') {
+        tg.BackButton.hide();
+    } else {
+        tg.BackButton.show();
+    }
+}
+
+// =============== СТАТИСТИКА ===============
+async function loadStats() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/stats`);
+        if (response.ok) {
+            const stats = await response.json();
+            const uCount = document.getElementById('users-count');
+            const tCount = document.getElementById('trips-count');
+            if (uCount) uCount.textContent = stats.tables?.users || stats.users || 0;
+            if (tCount) tCount.textContent = stats.tables?.active_trips || stats.trips || 0;
+        }
+    } catch (error) {
+        console.error('Ошибка статистики:', error);
+        setDefaultStats();
+    }
+}
+
+function setDefaultStats() {
+    ['users-count', 'trips-count'].forEach(id => {
         const el = document.getElementById(id);
-        if (!el) return;
-
-        let options = userCars.map(car => 
-            `<option value="${car.id}" ${car.is_default ? 'selected' : ''}>
-                ${car.model} ${car.color ? `(${car.color})` : ''}
-            </option>`
-        ).join('');
-
-        el.innerHTML = options || '<option value="">Сначала добавьте авто в профиле</option>';
+        if (el) el.textContent = '0';
     });
 }
 
-// =============== СОЗДАНИЕ ПОЕЗДКИ (ОБНОВЛЕНО) ===============
+// =============== ПРОФИЛЬ И МАШИНЫ ===============
+async function loadFullProfile() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/users/${currentUser.telegram_id}/full`);
+        const data = await res.json();
+        if (data.success) {
+            renderUserCars(data.cars || []);
+            renderUserTrips(data.trips || []);
+        }
+    } catch (e) {
+        showNotification('Ошибка загрузки профиля', 'error');
+    }
+}
 
-async function submitTrip() {
-    // Определяем, с какого экрана собираем данные (карта или простая форма)
-    const isMapMode = window.currentScreen === 'create-trip-map';
-    const prefix = isMapMode ? '-map' : '';
+function renderUserCars(cars) {
+    const container = document.getElementById('cars-list');
+    if (!container) return;
+    container.innerHTML = cars.map(car => `
+        <div class="car-card">
+            <div class="car-info">
+                <strong>${car.brand} ${car.model}</strong>
+                <span>${car.color} • ${car.plate_number}</span>
+            </div>
+            <button onclick="deleteCar(${car.id})" class="btn-icon"><i class="fas fa-trash"></i></button>
+        </div>
+    `).join('') || '<p>Машины не добавлены</p>';
+}
 
-    const carId = document.getElementById(`car-model${prefix}`)?.value || 
-                  document.getElementById('car-select')?.value;
+// =============== СОЗДАНИЕ ПОЕЗДКИ ===============
+async function createTrip() {
+    if (!currentUser) return showNotification('Авторизуйтесь', 'warning');
 
-    if (!carId) {
-        showNotification('Пожалуйста, выберите автомобиль', 'warning');
-        return;
+    const fromCity = document.getElementById('trip-from').value;
+    const toCity = document.getElementById('trip-to').value;
+    const date = document.getElementById('trip-date').value;
+    const time = document.getElementById('trip-time').value;
+    const seats = document.getElementById('trip-seats')?.value || 1;
+    const price = document.getElementById('trip-price').value;
+
+    if (!fromCity || !toCity || !date || !time || !price) {
+        return showNotification('Заполните все поля', 'warning');
     }
 
     const tripData = {
-        from_location: document.getElementById(`from-city${prefix}`).value,
-        to_location: document.getElementById(`to-city${prefix}`).value,
-        departure_time: document.getElementById(`departure-time${prefix}`).value,
-        available_seats: parseInt(document.getElementById(`seats-count${prefix}`).value),
-        price_per_seat: parseFloat(document.getElementById(`price${prefix}`).value),
-        car_id: parseInt(carId),
-        description: document.getElementById(`comment${prefix}`)?.value || ""
+        from_city: fromCity,
+        to_city: toCity,
+        departure_time: `${date}T${time}`,
+        seats_available: parseInt(seats),
+        price: parseFloat(price),
+        driver_id: currentUser.telegram_id
     };
 
-    // Валидация
-    if (!tripData.from_location || !tripData.to_location || !tripData.departure_time) {
-        showNotification('Заполните основные поля', 'warning');
-        return;
-    }
-
     try {
-        const response = await fetch(`${API_BASE_URL}/api/trips/create?telegram_id=${currentUser.telegram_id}`, {
+        const res = await fetch(`${API_BASE_URL}/api/trips`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(tripData)
         });
-
-        const result = await response.json();
-        if (response.ok) {
+        if (res.ok) {
             showNotification('✅ Поездка создана!', 'success');
             showScreen('welcome');
-        } else {
-            showNotification(result.detail || 'Ошибка создания', 'error');
         }
     } catch (e) {
-        showNotification('Ошибка сети', 'error');
+        showNotification('Ошибка создания', 'error');
     }
 }
 
-// =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
+// =============== ПОИСК И БРОНИРОВАНИЕ ===============
+async function searchTrips() {
+    const from = document.getElementById('from-input').value.trim();
+    const to = document.getElementById('to-input').value.trim();
+    const date = document.getElementById('date-input').value;
 
-function updateUI() {
-    const title = document.getElementById('welcome-title');
-    if (title && currentUser) title.textContent = `👋 Привет, ${currentUser.first_name}!`;
+    if (!from || !to || !date) return showNotification('Заполните поля поиска', 'warning');
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/trips/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from_city: from, to_city: to, date: date })
+        });
+        const result = await res.json();
+        if (result.success) {
+            currentTrips = result.trips;
+            displaySearchResults(result.trips);
+        }
+    } catch (e) {
+        showNotification('Ошибка поиска', 'error');
+    }
 }
 
-function showNotification(text, type = 'info') {
-    // Твоя логика уведомлений (Toast или tg.showAlert)
-    console.log(`[${type}] ${text}`);
-    tg.showAlert(text);
+function displaySearchResults(trips) {
+    const container = document.getElementById('search-results');
+    if (!container) return;
+
+    if (!trips || trips.length === 0) {
+        container.innerHTML = `<div class="empty-state"><p>Поездок не найдено</p></div>`;
+        return;
+    }
+
+    container.innerHTML = trips.map(trip => `
+        <div class="trip-card">
+            <div class="trip-header">
+                <span>${trip.driver.name}</span>
+                <strong>${trip.price} ₽</strong>
+            </div>
+            <div class="trip-route">
+                ${trip.from_city} → ${trip.to_city}
+            </div>
+            <button onclick="bookTrip(${trip.id})" class="btn-book">Забронировать</button>
+        </div>
+    `).join('');
 }
 
-function setupEventListeners() {
-    // Навигация
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.onclick = () => showScreen(btn.dataset.screen);
+async function bookTrip(tripId) {
+    const seats = prompt('Сколько мест?', '1');
+    if (!seats) return;
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/bookings?user_id=${currentUser.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trip_id: tripId, seats: parseInt(seats) })
+        });
+        if (res.ok) {
+            showNotification('✅ Забронировано!', 'success');
+            searchTrips(); // Обновляем список
+        }
+    } catch (e) {
+        showNotification('Ошибка бронирования', 'error');
+    }
+}
+
+// =============== АВТОДОПОЛНЕНИЕ ГОРОДОВ ===============
+function setupCityAutocomplete() {
+    const fieldMap = {
+        'find-trip': ['from-input', 'to-input'],
+        'create-trip': ['trip-from', 'trip-to']
+    };
+
+    const fields = fieldMap[window.currentScreen];
+    if (!fields) return;
+
+    fields.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', (e) => showCitySuggestions(id, e.target.value));
+        }
     });
-    
-    // Кнопка назад в TG
-    tg.onEvent('backButtonClicked', () => showScreen('welcome'));
 }
+
+function showCitySuggestions(fieldId, query) {
+    if (query.length < 2 || !window.RUSSIAN_CITIES) return hideCitySuggestions(fieldId);
+
+    const matches = window.RUSSIAN_CITIES.filter(c => 
+        c.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 5);
+
+    let container = document.getElementById(`${fieldId}-suggestions`);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = `${fieldId}-suggestions`;
+        container.className = 'suggestions-box';
+        document.getElementById(fieldId).parentNode.appendChild(container);
+    }
+
+    container.innerHTML = matches.map(city => `
+        <div class="suggestion-item" onclick="selectCity('${fieldId}', '${city}')">
+            📍 ${city}
+        </div>
+    `).join('');
+    container.style.display = matches.length ? 'block' : 'none';
+}
+
+function selectCity(fieldId, city) {
+    const input = document.getElementById(fieldId);
+    if (input) input.value = city;
+    hideCitySuggestions(fieldId);
+}
+
+function hideCitySuggestions(fieldId) {
+    const container = document.getElementById(`${fieldId}-suggestions`);
+    if (container) container.style.display = 'none';
+}
+
+// =============== СИСТЕМНЫЕ ФУНКЦИИ ===============
+function setupEventListeners() {
+    // Навигация по атрибутам data-screen
+    document.querySelectorAll('[data-screen]').forEach(btn => {
+        btn.addEventListener('click', () => showScreen(btn.dataset.screen));
+    });
+
+    // Кнопка поиска
+    const sBtn = document.getElementById('do-search');
+    if (sBtn) sBtn.addEventListener('click', searchTrips);
+
+    // Кнопка создания
+    const cBtn = document.getElementById('do-create');
+    if (cBtn) cBtn.addEventListener('click', createTrip);
+
+    // Telegram Back Button
+    tg.BackButton.onClick(() => {
+        if (window.currentScreen !== 'welcome') showScreen('welcome');
+    });
+}
+
+function showNotification(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `notification ${type} show`;
+    toast.innerHTML = `<span>${message}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Экспорт функций для HTML
+window.deleteCar = async (id) => { /* Логика удаления */ };
+window.selectCity = selectCity;
+window.bookTrip = bookTrip;
+
+// Запуск
+document.addEventListener('DOMContentLoaded', initApp);
