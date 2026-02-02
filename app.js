@@ -1448,7 +1448,6 @@ async function showTripDetails(tripId) {
 }
 
 // =============== БРОНИРОВАНИЕ ПОЕЗДКИ ===============
-
 async function bookTrip(tripId) {
     console.log('🎫 Бронирование поездки:', tripId);
     
@@ -1457,6 +1456,7 @@ async function bookTrip(tripId) {
         return;
     }
     
+    // 1. Спрашиваем количество мест
     const seats = parseInt(prompt('Сколько мест хотите забронировать?', '1'));
     if (!seats || seats < 1) return;
     
@@ -1466,6 +1466,7 @@ async function bookTrip(tripId) {
             booked_seats: seats
         };
         
+        // 2. Отправляем запрос на сервер
         const response = await fetch(
             `${API_BASE_URL}/api/bookings/create?telegram_id=${currentUser.telegram_id}`,
             {
@@ -1481,7 +1482,34 @@ async function bookTrip(tripId) {
         
         if (response.ok && result.success) {
             showNotification('✅ Место успешно забронировано!', 'success');
+            
+            // 3. ОБНОВЛЯЕМ ДАННЫЕ В ИНТЕРФЕЙСЕ БЕЗ ПЕРЕЗАГРУЗКИ
+            // Ищем поездку в глобальном массиве (обычно он называется currentTrips или trips)
+            if (typeof currentTrips !== 'undefined' && Array.isArray(currentTrips)) {
+                const tripIndex = currentTrips.findIndex(t => t.id === tripId);
+                
+                if (tripIndex !== -1) {
+                    // Уменьшаем количество мест в локальном объекте
+                    // Используем данные от сервера (result.remaining_seats) для точности
+                    if (result.remaining_seats !== undefined) {
+                        currentTrips[tripIndex].seats.available = result.remaining_seats;
+                    } else {
+                        currentTrips[tripIndex].seats.available -= seats;
+                    }
+
+                    // Если мест стало 0, можно либо оставить как есть, либо убрать из поиска
+                    // Вызываем функцию отрисовки, чтобы обновить цифры на экране
+                    displaySearchResults(currentTrips);
+                }
+            }
+
+            // 4. Опционально: обновляем профиль пользователя, если там есть счетчик поездок
+            if (typeof loadUserProfile === 'function') {
+                loadUserProfile();
+            }
+
         } else {
+            // Выводим ошибку от сервера (например, "Недостаточно мест")
             showNotification(result.detail || 'Ошибка бронирования', 'error');
         }
     } catch (error) {
