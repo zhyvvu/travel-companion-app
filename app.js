@@ -2252,77 +2252,63 @@ function initCreateTripMapForm() {
 
 // Создать поездку с данными карты
 async function createTripWithMap() {
-    console.log('🗺️ Создание поездки с данными карты...');
-    
-    if (typeof currentUser === 'undefined' || !currentUser) {
-        showNotification('Пожалуйста, авторизуйтесь', 'warning');
+    if (!window.YandexMapsModule || !window.YandexMapsModule.isMapInitialized()) {
+        tg.showAlert("Ошибка: Карта не инициализирована");
         return;
     }
-    
+
+    const routeData = window.YandexMapsModule.getRouteData();
+    if (!routeData.start_point || !routeData.finish_point) {
+        tg.showAlert("Пожалуйста, выберите начальную и конечную точки на карте");
+        return;
+    }
+
+    const date = document.getElementById('trip-date-map').value;
+    const time = document.getElementById('trip-time-map').value;
+    const seats = document.getElementById('seats-count-map').value;
+    const price = document.getElementById('trip-price-map').value;
+    const comment = document.getElementById('trip-comment-map').value;
+
+    if (!date || !time || !price) {
+        tg.showAlert("Заполните дату, время и стоимость");
+        return;
+    }
+
+    const tripData = {
+        from_location: routeData.start_point.address,
+        to_location: routeData.finish_point.address,
+        start_lat: routeData.start_point.lat,
+        start_lng: routeData.start_point.lng,
+        finish_lat: routeData.finish_point.lat,
+        finish_lng: routeData.finish_point.lng,
+        departure_date: date,
+        departure_time: time,
+        total_seats: parseInt(seats),
+        price_per_seat: parseFloat(price),
+        comment: comment,
+        distance_km: routeData.distance,
+        duration_min: routeData.duration
+    };
+
     try {
-        // 1. Получаем данные из модуля карты
-        const routeData = window.YandexMapsModule ? window.YandexMapsModule.getRouteData() : null;
-        
-        if (!routeData || !routeData.start_point || !routeData.finish_point) {
-            showNotification('Выберите точки начала и конца маршрута на карте', 'warning');
-            return;
-        }
-        
-        // 2. Собираем данные. Используем ?.value и || '', чтобы избежать TypeError
-        const dateStr = document.getElementById('trip-date-map')?.value || '';
-        const departure_time = document.getElementById('trip-time-map')?.value || '';
-        const seatsCount = parseInt(document.getElementById('seats-count-map')?.value || '1');
-        const priceValue = parseFloat(document.getElementById('trip-price-map')?.value || '0');
-        const comment = document.getElementById('trip-comment-map')?.value.trim() || '';
-        
-        // Валидация
-        if (!dateStr || !departure_time || isNaN(priceValue) || priceValue <= 0) {
-            showNotification('Заполните дату, время и цену', 'warning');
-            return;
-        }
-        
-        // 3. Формируем tripData
-        const tripData = {
-            from_city: routeData.start_point.address || "Точка на карте",
-            to_city: routeData.finish_point.address || "Точка на карте",
-            departure_time: `${dateStr}T${departure_time}:00`, // Добавляем секунды для строгого ISO
-            seats_available: seatsCount,
-            price: priceValue,
-            description: comment,
-            route_data: routeData, 
-            route_duration: Math.round(routeData.duration || 0) 
-        };
-        
-        console.log('📤 Отправляемый объект:', tripData);
-        
-        const response = await fetch(
-            `${API_BASE_URL}/api/trips/create?user_id=${currentUser.id}`, 
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(tripData)
-            }
-        );
-        
+        // Исправлен URL на /api/trips/create в соответствии с main.py
+        const response = await fetch(`${API_BASE_URL}/api/trips/create?user_id=${currentUser.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tripData)
+        });
+
         const result = await response.json();
-        
-        if (response.ok) {
-            showNotification('✅ Поездка создана успешно!', 'success');
-            window.YandexMapsModule.clearRoute();
-            setTimeout(() => {
-                if (window.showScreen) showScreen('welcome');
-            }, 1500);
+        if (result.success) {
+            tg.showAlert("Поездка успешно создана!");
+            showScreen('welcome');
+            loadStats(); 
         } else {
-            const errorMsg = result.detail ? (typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail)) : 'Ошибка сервера';
-            showNotification('Ошибка: ' + errorMsg, 'error');
+            tg.showAlert("Ошибка: " + (result.detail || result.message));
         }
-        
     } catch (error) {
-        console.error('❌ Критическая ошибка:', error);
-        showNotification('Ошибка при связи с сервером', 'error');
+        console.error("Ошибка при создании поездки:", error);
+        tg.showAlert("Не удалось отправить данные на сервер");
     }
 }
 

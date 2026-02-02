@@ -1,4 +1,4 @@
-// ====================== yandex-maps.js ======================
+// ====================== yandex-maps.js (ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ) ======================
 let map = null;
 let startPlacemark = null;
 let finishPlacemark = null;
@@ -13,7 +13,6 @@ let routeData = {
     polyline: null
 };
 
-// Вспомогательная функция для безопасного обновления текста
 function safeSetText(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
@@ -34,18 +33,17 @@ function initYandexMap() {
                 initMapEvents();
                 initMapControls();
                 
-                // Привязываем подсказки ко всем полям
+                // Исправленные ID для привязки подсказок к элементам из index.html
                 const inputs = [
-                    {i: 'from-input', s: 'suggestions-from'},
-                    {i: 'to-input', s: 'suggestions-to'},
-                    {i: 'map-search-input', s: 'map-suggestions'},
-                    {i: 'trip-from', s: 'suggestions-trip-from'},
-                    {i: 'trip-to', s: 'suggestions-trip-to'}
+                    {i: 'find-from', s: 'find-from-suggestions'},
+                    {i: 'find-to', s: 'find-to-suggestions'},
+                    {i: 'map-search-input', s: 'map-search-input-suggestions'}
                 ];
                 inputs.forEach(pair => bindCustomSuggest(pair.i, pair.s));
 
                 resolve(map);
             } catch (error) {
+                console.error("Ошибка инициализации карты:", error);
                 reject(error);
             }
         });
@@ -112,9 +110,7 @@ function setStartPoint(coords, address) {
     map.geoObjects.add(startPlacemark);
     routeData.start_point = { lat: coords[0], lng: coords[1], address: address };
     
-    // Безопасное обновление адреса в UI
-    const displayEl = document.getElementById('start-address-val') || document.getElementById('start-address');
-    if (displayEl) displayEl.textContent = address;
+    safeSetText('start-address-val', address);
     
     if (finishPlacemark) buildRoute();
 }
@@ -125,8 +121,7 @@ function setFinishPoint(coords, address) {
     map.geoObjects.add(finishPlacemark);
     routeData.finish_point = { lat: coords[0], lng: coords[1], address: address };
     
-    const displayEl = document.getElementById('finish-address-val') || document.getElementById('finish-address');
-    if (displayEl) displayEl.textContent = address;
+    safeSetText('finish-address-val', address);
     
     if (startPlacemark) buildRoute();
 }
@@ -146,7 +141,6 @@ function buildRoute() {
             routeData.distance = parseFloat((activeRoute.properties.get('distance').value / 1000).toFixed(1));
             routeData.duration = Math.round(activeRoute.properties.get('duration').value / 60);
             
-            // ИСПОЛЬЗУЕМ БЕЗОПАСНОЕ ОБНОВЛЕНИЕ
             safeSetText('route-distance', routeData.distance);
             safeSetText('route-duration', routeData.duration);
             
@@ -157,15 +151,11 @@ function buildRoute() {
 }
 
 function initMapControls() {
+    // Используем делегирование или проверку существования
     document.getElementById('btn-set-start')?.addEventListener('click', () => { currentMode = 'start'; updateModeBtns(); });
     document.getElementById('btn-set-finish')?.addEventListener('click', () => { currentMode = 'finish'; updateModeBtns(); });
     document.getElementById('btn-clear-route')?.addEventListener('click', clearRoute);
 }
-
-//function updateModeBtns() {
-  //  document.getElementById('btn-set-start')?.classList.toggle('active', currentMode === 'start');
-  //  document.getElementById('btn-set-finish')?.classList.toggle('active', currentMode === 'finish');
-//}
 
 function updateModeBtns() {
     const btnS = document.getElementById('btn-set-start');
@@ -191,10 +181,9 @@ window.YandexMapsModule = {
     initMap: initYandexMap,
     getRouteData: () => routeData,
     clearRoute: clearRoute,
-    // Добавляем недостающую функцию:
     setCurrentMode: (mode) => { 
         currentMode = mode; 
-        updateModeBtns(); // Обновляем визуальный вид кнопок (активная/неактивная)
+        updateModeBtns(); 
     },
     isMapInitialized: () => map !== null
 };

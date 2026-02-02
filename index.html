@@ -123,6 +123,17 @@
 
                         <div id="yandex-map" class="map-container" style="height: 300px; width: 100%;"></div>
                         
+                        <div class="selected-points">
+                            <div class="point-item">
+                                <i class="fas fa-circle" style="color: #4CAF50; font-size: 10px;"></i>
+                                <span id="start-address-val">Не выбрано</span>
+                            </div>
+                            <div class="point-item">
+                                <i class="fas fa-circle" style="color: #F44336; font-size: 10px;"></i>
+                                <span id="finish-address-val">Не выбрано</span>
+                            </div>
+                        </div>
+
                         <div class="map-controls">
                             <button id="btn-set-start" class="map-btn active" onclick="setMapMode('start')">
                                 <i class="fas fa-map-marker-alt"></i> Откуда
@@ -222,6 +233,6 @@
 
     <script src="https://api-maps.yandex.ru/2.1/?apikey=46046ee2-ef66-47ae-b570-ca0680738074&lang=ru_RU" type="text/javascript"></script>
     <script src="app.js"></script>     
-    <script src="trip-route-map.js"></script>
+    <script src="yandex-maps.js"></script>
 </body>
 </html>
