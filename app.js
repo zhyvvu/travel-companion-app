@@ -8,15 +8,12 @@ const API_BASE_URL = "https://travel-api-n6r2.onrender.com"; // СЮДА НУЖ�
 let currentUser = null;
 let currentTrips = [];
 window.currentScreen = 'welcome';
-window.autocompleteInitialized = false;
 
-// =============== 2. ИНИЦИАЛИЗАЦИЯ ===============
+// =============== ИНИЦИАЛИЗАЦИЯ ===============
 function initApp() {
-    console.log('🚀 Старт приложения...');
     tg.expand();
     tg.ready();
 
-    // Получение данных пользователя из Telegram
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
         currentUser = {
             id: tg.initDataUnsafe.user.id,
@@ -26,283 +23,176 @@ function initApp() {
             username: tg.initDataUnsafe.user.username,
             name: `${tg.initDataUnsafe.user.first_name} ${tg.initDataUnsafe.user.last_name || ''}`.trim()
         };
-        console.log('👤 Пользователь:', currentUser);
-        updateUserUI();
-    } else {
-        // Режим отладки для браузера
-        console.warn('⚠️ Данные Telegram не найдены, режим отладки');
-        currentUser = { id: 12345, telegram_id: 12345, name: "Debug User" };
         updateUserUI();
     }
-
+    
     setupEventListeners();
     loadStats();
     showScreen('welcome');
 }
 
-// =============== 3. НАВИГАЦИЯ И ИНТЕРФЕЙС ===============
+// =============== НАВИГАЦИЯ (ИСПРАВЛЕННАЯ ПОД КАРТЫ) ===============
 function showScreen(screenId) {
-    console.log('📱 Переход на экран:', screenId);
     window.currentScreen = screenId;
-
+    
     // Скрываем все экраны
     document.querySelectorAll('.screen').forEach(s => {
         s.classList.remove('active');
         s.style.display = 'none';
     });
     
-    // Показываем активный
     const activeScreen = document.getElementById(screenId);
     if (activeScreen) {
-        activeScreen.classList.add('active');
         activeScreen.style.display = 'block';
+        // Даем браузеру время отрисовать блок перед активацией
+        setTimeout(() => activeScreen.classList.add('active'), 10);
     }
 
-    // Специфическая инициализация
-    if (screenId === 'profile') loadFullProfile();
+    // Инициализация карты только когда экран показан
     if (screenId === 'create-trip-map') {
-        if (typeof TripRouteMap !== 'undefined' && TripRouteMap.init) {
-            TripRouteMap.init();
-        }
+        initMapScreen();
     }
+
+    if (screenId === 'profile') loadFullProfile();
     
-    // Настройка автодополнения (Часть 9)
     setupCityAutocomplete();
 
-    // Кнопка Back в Telegram
-    if (screenId === 'welcome') {
-        tg.BackButton.hide();
-    } else {
-        tg.BackButton.show();
+    if (screenId === 'welcome') tg.BackButton.hide();
+    else tg.BackButton.show();
+}
+
+async function initMapScreen() {
+    const mapContainer = document.getElementById('yandex-map');
+    if (mapContainer && typeof TripRouteMap !== 'undefined') {
+        try {
+            // Ждем, пока блок станет видимым, чтобы не было ошибки offsetWidth
+            await TripRouteMap.init();
+            console.log("✅ Карта успешно инициализирована");
+        } catch (e) {
+            console.error("❌ Ошибка инициализации карты:", e);
+        }
     }
 }
 
-function updateUserUI() {
-    const userNameEl = document.getElementById('user-name');
-    if (userNameEl) userNameEl.textContent = currentUser.name;
-    
-    const welcomeTitle = document.getElementById('welcome-title');
-    if (welcomeTitle) welcomeTitle.textContent = `👋 Привет, ${currentUser.first_name || 'друг'}!`;
-}
-
-// =============== 4. РАБОТА С БАЗОЙ ДАННЫХ (FETCH) ===============
-
-async function loadStats() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/stats`);
-        if (!response.ok) throw new Error('Ошибка сети');
-        const stats = await response.json();
-        
-        const uCount = document.getElementById('users-count');
-        const tCount = document.getElementById('trips-count');
-        
-        if (uCount) uCount.textContent = stats.users || stats.tables?.users || 0;
-        if (tCount) tCount.textContent = stats.active_trips || stats.tables?.active_trips || 0;
-    } catch (error) {
-        console.error('❌ Ошибка статистики:', error);
-        // Не блокируем работу, если статистика не загрузилась
-    }
-}
-
+// =============== ПРОФИЛЬ (ВОССТАНОВЛЕНО ПО ЧАСТИ 4 и 7) ===============
 async function loadFullProfile() {
     if (!currentUser) return;
-    const profileContainer = document.getElementById('profile-data');
-    if (profileContainer) profileContainer.innerHTML = '<div class="loader">Загрузка...</div>';
+    const container = document.getElementById('profile-data');
+    container.innerHTML = '<div class="loader"></div>';
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/users/${currentUser.telegram_id}/full`);
-        const data = await res.json();
+        const response = await fetch(`${API_BASE_URL}/api/users/${currentUser.telegram_id}/full`);
+        const data = await response.json();
         
         if (data.success) {
             renderFullProfile(data);
-        } else {
-            showNotification('Ошибка загрузки профиля', 'error');
         }
     } catch (e) {
-        console.error('Ошибка профиля:', e);
+        container.innerHTML = '<p>Ошибка загрузки профиля</p>';
     }
 }
 
 function renderFullProfile(data) {
     const container = document.getElementById('profile-data');
-    if (!container) return;
-
-    let html = `
-        <div class="user-main-info">
+    container.innerHTML = `
+        <div class="profile-header">
             <h3>${data.user.name}</h3>
-            <p>@${data.user.username || 'no_username'}</p>
+            <p>Рейтинг: ⭐ ${data.user.rating || '5.0'}</p>
         </div>
-        <div class="cars-section">
+        <div class="profile-section">
             <h4>🚗 Мои автомобили</h4>
             <div id="cars-list">${renderCars(data.cars)}</div>
-            <button class="btn-add-car" onclick="showAddCarModal()">+ Добавить авто</button>
+            <button class="add-btn" onclick="showAddCarModal()">Добавить авто</button>
         </div>
-        <div class="my-trips-section">
-            <h4>📅 Мои поездки (Водитель)</h4>
-            <div id="driver-trips">${renderDriverTrips(data.trips)}</div>
+        <div class="profile-section">
+            <h4>📅 Активные поездки</h4>
+            <div id="user-trips">${renderUserTrips(data.trips)}</div>
         </div>
     `;
-    container.innerHTML = html;
 }
 
-// =============== 5. АВТОДОПОЛНЕНИЕ (RUSSIAN_CITIES) ===============
-
-function setupCityAutocomplete() {
-    const fieldMap = {
-        'find-trip': ['find-from', 'find-to'],
-        'create-trip-map': ['map-search-input']
-    };
-
-    const fieldIds = fieldMap[window.currentScreen];
-    if (!fieldIds) return;
-
-    fieldIds.forEach(id => {
-        const input = document.getElementById(id);
-        if (input && !input._autocompleteBound) {
-            input.addEventListener('input', (e) => showCitySuggestionsSimple(id, e.target.value));
-            input._autocompleteBound = true;
-        }
-    });
-}
-
-function showCitySuggestionsSimple(fieldId, query) {
-    if (query.length < 2 || !window.RUSSIAN_CITIES) {
-        hideCitySuggestions(fieldId);
-        return;
-    }
-
-    const matches = window.RUSSIAN_CITIES.filter(c => 
-        c.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 5);
-
-    let container = document.getElementById(`${fieldId}-suggestions`);
-    if (!container) {
-        container = document.createElement('div');
-        container.id = `${fieldId}-suggestions`;
-        container.className = 'city-suggestions';
-        const input = document.getElementById(fieldId);
-        input.parentNode.style.position = 'relative';
-        input.parentNode.appendChild(container);
-    }
-
-    container.innerHTML = matches.map(city => `
-        <div class="suggestion-item" onclick="selectCitySimple('${fieldId}', '${city.replace(/'/g, "\\'")}')">
-            📍 ${city}
+// Функция из части 7 для отрисовки машин
+function renderCars(cars) {
+    if (!cars || cars.length === 0) return '<p>Автомобили не добавлены</p>';
+    return cars.map(car => `
+        <div class="car-item">
+            <span>${car.brand} ${car.model} (${car.plate_number})</span>
+            <button onclick="deleteCar(${car.id})"><i class="fas fa-trash"></i></button>
         </div>
     `).join('');
-    container.style.display = matches.length ? 'block' : 'none';
 }
 
-window.selectCitySimple = function(fieldId, city) {
-    const input = document.getElementById(fieldId);
-    if (input) input.value = city;
-    hideCitySuggestions(fieldId);
-    
-    // Если это поиск на карте, инициируем поиск в Яндекс.Картах
-    if (fieldId === 'map-search-input' && typeof TripRouteMap !== 'undefined') {
-        TripRouteMap.searchAndSetPoint(city, TripRouteMap.currentMode || 'start');
-    }
-};
-
-function hideCitySuggestions(fieldId) {
-    const container = document.getElementById(`${fieldId}-suggestions`);
-    if (container) container.style.display = 'none';
-}
-
-// =============== 6. ПОИСК И БРОНИРОВАНИЕ (ЧАСТЬ 6) ===============
-
+// =============== ПОИСК (ВОССТАНОВЛЕНО ПО ЧАСТИ 6) ===============
 async function searchTrips() {
-    const from = document.getElementById('find-from').value.trim();
-    const to = document.getElementById('find-to').value.trim();
+    const from = document.getElementById('find-from').value;
+    const to = document.getElementById('find-to').value;
     const date = document.getElementById('find-date').value;
+    const pass = document.getElementById('find-passengers').value;
 
     if (!from || !to || !date) {
         showNotification('Заполните все поля поиска', 'warning');
         return;
     }
 
-    const resultsContainer = document.getElementById('search-results');
-    resultsContainer.innerHTML = '<div class="loader">Ищем поездки...</div>';
-
     try {
-        const response = await fetch(`${API_BASE_URL}/api/trips/search`, {
+        const res = await fetch(`${API_BASE_URL}/api/trips/search`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ from_city: from, to_city: to, date: date })
+            body: JSON.stringify({ from_city: from, to_city: to, date: date, passengers: pass })
         });
-        const result = await response.json();
+        const result = await res.json();
         
+        const container = document.getElementById('search-results');
         if (result.success && result.trips.length > 0) {
             currentTrips = result.trips;
-            renderSearchResults(result.trips);
+            container.innerHTML = result.trips.map(trip => `
+                <div class="trip-card">
+                    <div class="trip-info">
+                        <strong>${trip.from_city} → ${trip.to_city}</strong>
+                        <span>Водитель: ${trip.driver.name}</span>
+                        <span>Мест: ${trip.seats_available}</span>
+                    </div>
+                    <div class="trip-action">
+                        <span class="price">${trip.price} ₽</span>
+                        <button onclick="bookTrip(${trip.id})">Забронировать</button>
+                    </div>
+                </div>
+            `).join('');
         } else {
-            resultsContainer.innerHTML = '<div class="empty-state">Поездок не найдено</div>';
+            container.innerHTML = '<div class="empty-state">Поездок не найдено</div>';
         }
     } catch (e) {
-        showNotification('Ошибка связи с сервером', 'error');
+        showNotification('Ошибка поиска', 'error');
     }
 }
 
-function renderSearchResults(trips) {
-    const container = document.getElementById('search-results');
-    container.innerHTML = trips.map(trip => `
-        <div class="trip-card">
-            <div class="trip-time">${new Date(trip.departure_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-            <div class="trip-main">
-                <div class="trip-route">${trip.from_city} ➔ ${trip.to_city}</div>
-                <div class="trip-driver">🚗 ${trip.driver.name}</div>
-            </div>
-            <div class="trip-price">${trip.price} ₽</div>
-            <button onclick="bookTrip(${trip.id})" class="btn-book">Выбрать</button>
-        </div>
-    `).join('');
-}
-
-// =============== 7. ЯНДЕКС КАРТЫ (ЧАСТЬ 9) ===============
-
-window.setMapMode = function(mode) {
-    if (typeof TripRouteMap !== 'undefined') {
-        TripRouteMap.setMode(mode);
-        document.getElementById('btn-set-start').classList.toggle('active', mode === 'start');
-        document.getElementById('btn-set-finish').classList.toggle('active', mode === 'finish');
-    }
-};
-
-window.clearMapRoute = function() {
-    if (typeof TripRouteMap !== 'undefined') TripRouteMap.clear();
-};
-
+// =============== СОЗДАНИЕ ПОЕЗДКИ (ВОССТАНОВЛЕНО ПО ЧАСТИ 9) ===============
 async function createTripWithMap() {
-    if (!currentUser) return;
-    
-    // Получаем данные из модуля карты
-    const routeData = typeof TripRouteMap !== 'undefined' ? TripRouteMap.getRouteData() : null;
-    
-    if (!routeData || !routeData.start_point || !routeData.finish_point) {
-        showNotification('Выберите маршрут на карте', 'warning');
+    const routeData = TripRouteMap.getRouteData();
+    if (!routeData.start_point || !routeData.finish_point) {
+        showNotification('Укажите маршрут на карте', 'warning');
         return;
     }
 
-    const tripData = {
+    const payload = {
         driver_id: currentUser.telegram_id,
-        from_city: routeData.start_address || 'Неизвестно',
-        to_city: routeData.finish_address || 'Неизвестно',
+        from_city: routeData.start_address,
+        to_city: routeData.finish_address,
         departure_time: `${document.getElementById('trip-date-map').value}T${document.getElementById('trip-time-map').value}`,
-        price: parseFloat(document.getElementById('trip-price-map').value),
-        seats_available: parseInt(document.getElementById('seats-count-map').value),
+        price: document.getElementById('trip-price-map').value,
+        seats_available: document.getElementById('seats-count-map').value,
         comment: document.getElementById('trip-comment-map').value,
-        distance: routeData.distance,
-        duration: routeData.duration
+        route_geometry: routeData.geometry // Это важно для бэкенда из части 9
     };
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/trips`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(tripData)
+            body: JSON.stringify(payload)
         });
         if (res.ok) {
-            showNotification('✅ Поездка создана!', 'success');
+            showNotification('Поездка создана!', 'success');
             showScreen('welcome');
         }
     } catch (e) {
@@ -310,32 +200,77 @@ async function createTripWithMap() {
     }
 }
 
-// =============== 8. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
-
-function showNotification(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `notification ${type} show`;
-    toast.innerHTML = `<span>${message}</span>`;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-function setupEventListeners() {
-    // Кнопка Назад Telegram
-    tg.BackButton.onClick(() => {
-        if (window.currentScreen !== 'welcome') showScreen('welcome');
-    });
-
-    // Обработка кликов вне модалок и подсказок
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.input-group')) {
-            document.querySelectorAll('.city-suggestions').forEach(s => s.style.display = 'none');
+// =============== АВТОДОПОЛНЕНИЕ (ИСПРАВЛЕННЫЕ ID) ===============
+function setupCityAutocomplete() {
+    const mapping = {
+        'find-trip': ['find-from', 'find-to'],
+        'create-trip-map': ['map-search-input']
+    };
+    const ids = mapping[window.currentScreen] || [];
+    ids.forEach(id => {
+        const input = document.getElementById(id);
+        if (input && !input._bound) {
+            input.addEventListener('input', (e) => showSuggestions(id, e.target.value));
+            input._bound = true;
         }
     });
 }
 
-// Инициализация при загрузке
+function showSuggestions(fieldId, val) {
+    if (val.length < 2) return hideSuggestions(fieldId);
+    // Используем RUSSIAN_CITIES из части 5
+    const matches = (window.RUSSIAN_CITIES || []).filter(c => c.toLowerCase().includes(val.toLowerCase())).slice(0, 5);
+    
+    let container = document.getElementById(`${fieldId}-suggestions`);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = `${fieldId}-suggestions`;
+        container.className = 'suggestions-container';
+        document.getElementById(fieldId).parentNode.appendChild(container);
+    }
+    
+    container.innerHTML = matches.map(m => `<div onclick="applySuggestion('${fieldId}','${m}')">${m}</div>`).join('');
+    container.style.display = 'block';
+}
+
+window.applySuggestion = function(id, val) {
+    document.getElementById(id).value = val;
+    hideSuggestions(id);
+    if (id === 'map-search-input') TripRouteMap.searchAndSetPoint(val, TripRouteMap.currentMode || 'start');
+};
+
+function hideSuggestions(id) {
+    const el = document.getElementById(`${id}-suggestions`);
+    if (el) el.style.display = 'none';
+}
+
+// =============== ВСПОМОГАТЕЛЬНОЕ ===============
+function loadStats() {
+    fetch(`${API_BASE_URL}/stats`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('users-count').textContent = data.users || 0;
+            document.getElementById('trips-count').textContent = data.active_trips || 0;
+        }).catch(() => {});
+}
+
+function updateUserUI() {
+    const el = document.getElementById('user-name');
+    if (el) el.textContent = currentUser.name;
+}
+
+function showNotification(msg, type) {
+    const n = document.createElement('div');
+    n.className = `notification ${type} show`;
+    n.textContent = msg;
+    document.body.appendChild(n);
+    setTimeout(() => n.remove(), 3000);
+}
+
+function setupEventListeners() {
+    tg.BackButton.onClick(() => {
+        if (window.currentScreen !== 'welcome') showScreen('welcome');
+    });
+}
+
 document.addEventListener('DOMContentLoaded', initApp);
