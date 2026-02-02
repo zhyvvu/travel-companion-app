@@ -1,4 +1,3 @@
-// app.js - ПОЛНАЯ ВЕРСИЯ: ВСЕ ФУНКЦИИ В 10 РАЗ КОМПАКТНЕЕ
 const tg = window.Telegram.WebApp;
 const API_BASE_URL = "https://travel-api-n6r2.onrender.com";
 
@@ -11,16 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
     tg.expand();
     authenticateUser();
     
-    // Привязываем поиск Яндекса к полям на экране поиска
-    if (window.YandexMapsModule) {
-        window.YandexMapsModule.initMap().then(() => {
-            // Теперь и в поиске работает автодополнение Яндекса
-            console.log("✅ Яндекс.Карты подключены к поиску и созданию");
-        });
-    }
+    // Навигация
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.onclick = () => showScreen(btn.id.replace('nav-', ''));
+    });
 });
 
-// 2. АВТОРИЗАЦИЯ (Исправлено: /api/users/auth)
+// 2. АВТОРИЗАЦИЯ (Исправлен путь на /api/users/auth)
 async function authenticateUser() {
     if (authInProgress) return;
     authInProgress = true;
@@ -39,34 +35,18 @@ async function authenticateUser() {
             updateUI();
             loadStats();
         }
-    } catch (e) {
-        console.error("Ошибка входа:", e);
-    } finally {
-        authInProgress = false;
-    }
+    } catch (e) { console.error("Ошибка входа:", e); }
+    finally { authInProgress = false; }
 }
 
-// 3. НАВИГАЦИЯ
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    
-    const target = document.getElementById(screenId);
-    if (target) {
-        target.style.display = 'block';
-        const navId = screenId.includes('create') ? 'nav-create' : `nav-${screenId}`;
-        document.getElementById(navId)?.classList.add('active');
-    }
-}
-
-// 4. ПОИСК ПОЕЗДОК (Используем новые поля)
+// 3. ПОИСК И БРОНИРОВАНИЕ (ВАША ЛОГИКА)
 async function searchTrips() {
     const from = document.getElementById('find-from').value;
     const to = document.getElementById('find-to').value;
     const date = document.getElementById('find-date').value;
 
     const resultsContainer = document.getElementById('trips-results');
-    resultsContainer.innerHTML = '<div class="loader">Поиск...</div>';
+    resultsContainer.innerHTML = '<div class="loader">Ищем лучшие варианты...</div>';
 
     try {
         const url = `${API_BASE_URL}/api/trips/search?from_city=${encodeURIComponent(from)}&to_city=${encodeURIComponent(to)}&date=${date}`;
@@ -76,31 +56,51 @@ async function searchTrips() {
         resultsContainer.innerHTML = data.trips?.length 
             ? data.trips.map(trip => renderTripCard(trip)).join('')
             : '<div class="no-results">Поездок не найдено</div>';
-    } catch (e) {
-        resultsContainer.innerHTML = 'Ошибка загрузки';
-    }
+    } catch (e) { resultsContainer.innerHTML = 'Ошибка загрузки'; }
 }
 
 function renderTripCard(trip) {
     return `
-        <div class="trip-card">
+        <div class="trip-card" onclick="showTripDetails(${trip.id})">
             <div class="trip-main">
-                <span>${trip.from_city} → ${trip.to_city}</span>
-                <strong>${trip.price} ₽</strong>
+                <div class="route"><strong>${trip.from_city}</strong> → <strong>${trip.to_city}</strong></div>
+                <div class="price">${trip.price} ₽</div>
             </div>
-            <div class="trip-details">
-                <span>📅 ${trip.departure_date}</span>
-                <span>👥 ${trip.seats_available} мест</span>
+            <div class="trip-meta">
+                <span>📅 ${trip.departure_date} в ${trip.departure_time}</span>
+                <span>👤 ${trip.driver_name}</span>
             </div>
-            <button class="book-btn" onclick="bookTrip(${trip.id})">Забронировать</button>
         </div>`;
 }
 
-// 5. СОЗДАНИЕ ПОЕЗДКИ (С КАРТОЙ)
+// ВОССТАНОВЛЕННАЯ ФУНКЦИЯ БРОНИРОВАНИЯ
+async function bookTrip(tripId) {
+    tg.showConfirm("Забронировать место в этой поездке?", async (confirmed) => {
+        if (!confirmed) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/bookings/create?user_id=${currentUser.id}&trip_id=${tripId}`, {
+                method: 'POST'
+            });
+            const result = await response.json();
+            if (result.success) {
+                tg.showAlert("✅ Место забронировано! Водитель получит уведомление.");
+                showScreen('welcome');
+                loadStats();
+            } else {
+                tg.showAlert("Ошибка: " + result.detail);
+            }
+        } catch (e) {
+            tg.showAlert("Не удалось связаться с сервером");
+        }
+    });
+}
+
+// 4. СОЗДАНИЕ ПОЕЗДКИ (Исправлено для Карт и Pydantic)
 async function createTripWithMap() {
     const route = window.YandexMapsModule?.getRouteData();
     if (!route?.start_point || !route?.finish_point) {
-        tg.showAlert("Отметьте точки на карте!");
+        tg.showAlert("Сначала отметьте маршрут на карте");
         return;
     }
 
@@ -130,34 +130,57 @@ async function createTripWithMap() {
             tg.showAlert("✅ Поездка создана!");
             showScreen('welcome');
             loadStats();
+        } else {
+            const err = await res.json();
+            tg.showAlert("Ошибка: " + JSON.stringify(err.detail));
         }
-    } catch (e) { tg.showAlert("Ошибка сети"); }
+    } catch (e) { tg.showAlert("Сбой сети"); }
 }
 
-// 6. ПРОФИЛЬ И МАШИНЫ
-async function loadUserProfile() {
-    if (!currentUser) return;
-    loadUserCars();
-    document.getElementById('profile-data').innerHTML = `
-        <div class="user-info">
-            <h3>${currentUser.first_name}</h3>
-            <p>Рейтинг: ⭐ 5.0</p>
-        </div>
-        <div id="cars-list"></div>
-        <button class="add-car-btn" onclick="tg.showAlert('Функция в разработке')">Добавить авто</button>
-    `;
+// 5. МОДАЛЬНЫЕ ОКНА И ДЕТАЛИ (ВОССТАНОВЛЕНО)
+function showTripDetails(tripId) {
+    // Ваша логика открытия деталей поездки
+    openModal("Загрузка деталей...");
+    fetch(`${API_BASE_URL}/api/trips/${tripId}`)
+        .then(r => r.json())
+        .then(trip => {
+            const content = `
+                <h3>Поездка ${trip.from_city} — ${trip.to_city}</h3>
+                <p>Водитель: ${trip.driver_name}</p>
+                <p>Цена: ${trip.price} ₽</p>
+                <button class="submit-btn" onclick="bookTrip(${trip.id})">Забронировать</button>
+            `;
+            document.getElementById('modal-body').innerHTML = content;
+        });
 }
 
-async function loadUserCars() {
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/users/${currentUser.id}/cars`);
-        const data = await res.json();
-        const list = document.getElementById('cars-list');
-        if (list) list.innerHTML = data.cars.map(c => `<div class="car-item">🚗 ${c.model} (${c.plate})</div>`).join('');
-    } catch (e) { console.error(e); }
+function openModal(html) {
+    const modal = document.getElementById('modal');
+    document.getElementById('modal-body').innerHTML = html;
+    modal.style.display = 'flex';
 }
 
-// 7. СТАТИСТИКА
+function closeModal() {
+    document.getElementById('modal').style.display = 'none';
+}
+
+// 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+function showScreen(screenId) {
+    // Если screenId пришел от кнопки навигации (например 'nav-create'), чистим его
+    const id = screenId.replace('nav-', '');
+    // Обработка случая, если экран создания теперь называется 'create-trip-map'
+    const targetId = (id === 'create') ? 'create-trip-map' : id;
+
+    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    
+    const target = document.getElementById(targetId);
+    if (target) {
+        target.style.display = 'block';
+        document.getElementById('nav-' + id)?.classList.add('active');
+    }
+}
+
 async function loadStats() {
     if (!currentUser) return;
     try {
@@ -176,8 +199,9 @@ function updateUI() {
     }
 }
 
-// Глобальный доступ
+// Экспорт в window
 window.showScreen = showScreen;
 window.searchTrips = searchTrips;
 window.createTripWithMap = createTripWithMap;
-window.bookTrip = (id) => tg.showAlert("Бронирование поездки #" + id);
+window.bookTrip = bookTrip;
+window.closeModal = closeModal;
